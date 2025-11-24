@@ -2,7 +2,7 @@ const verifyJWT = require('../services/verifyJWT')
 
 async function verifyAuthMiddleware(req, res, next) {
     
-  const token = req.headers.authorization?.replace('Bearer ', '')
+  const token = req.cookies.token
   if (!token) return res.status(401).json({ error: 'No token' })
 
   try {

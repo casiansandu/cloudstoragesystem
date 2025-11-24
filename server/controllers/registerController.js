@@ -7,17 +7,17 @@ async function registerController(req, res) {
         const { username, email, password } = req.body;
 
         if (!username || !email || !password) {
-          return res.status(400).json({ message: 'All fields are required' });
+          return res.status(400).json({ message: 'All fields are required', success: false});
         }
         else {
           const user = await createUserService({ username, email, password });
           const folder = await createUserFileSpace({username})
 
-          return res.status(201).json({ message: 'User registered successfully', user, folder });
+          return res.status(201).json({ message: 'User registered successfully', user, folder, success: true });
         }
 
     } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message, success: false});
   }
 }
 

@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken')
 const { JWT_SECRET } = require('../config/config')
 
 async function noAuthMiddleware(req, res, next) {
-    const token = req.headers.authorization?.replace('Bearer ', '')
+    const token = req.cookies.token
 
     if (!token) {
         return next()
@@ -10,7 +10,7 @@ async function noAuthMiddleware(req, res, next) {
 
     try {
         jwt.verify(token, JWT_SECRET)
-        return res.status(403).json({ error: 'Already logged in' })
+        return res.status(403).json({ message: 'Already logged in', success: false})
     } 
     catch {
         next()

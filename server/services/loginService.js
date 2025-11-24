@@ -12,6 +12,12 @@ async function loginService({ username, password }) {
         
         if (passwords_match) {
 
+            const is_logged_in = await db.oneOrNone('SELECT username from sessions where username = $1', [username])
+
+            if (is_logged_in) {
+                throw new Error("Already logged in")
+            }
+
             const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, {
                 expiresIn: "1h",
             });
