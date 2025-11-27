@@ -1,6 +1,6 @@
-import { hashPassword } from '../utils/password.js';
-import db from '../db/db.js';
-import { UserRegistration, UserCreationResult, User } from '../types/index.js';
+import { hashPassword } from '../utils/password';
+import db from '../db/db';
+import { UserRegistration, UserCreationResult, User } from '../types';
 
 export async function createUserService(userData: UserRegistration): Promise<UserCreationResult> {
   const { username, email, password } = userData;

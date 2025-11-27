@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { getAllUsersService } from '../services/getAllUsersService.js';
-import { User } from '../types/index.js';
+import { getAllUsersService } from '../services/getAllUsersService';
+import { User } from '../types';
 
 interface GetAllUsersResponse {
   users: User[];

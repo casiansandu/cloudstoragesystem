@@ -1,7 +1,7 @@
 import { Response } from 'express';
-import { createUserService } from '../services/createUserService.js';
-import { createUserFileSpace } from '../services/createUserFileSpaceService.js';
-import { RegisterRequest, ApiSuccessResponse, ApiErrorResponse } from '../types/index.js';
+import { createUserService } from '../services/createUserService';
+import { createUserFileSpace } from '../services/createUserFileSpaceService';
+import { RegisterRequest, ApiSuccessResponse, ApiErrorResponse } from '../types';
 
 interface RegisterSuccessData {
   user: {

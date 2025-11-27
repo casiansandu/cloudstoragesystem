@@ -1,6 +1,6 @@
 import { Response } from 'express';
-import { logoutService } from '../services/logoutService.js';
-import { AuthenticatedRequest, ApiSuccessResponse, ApiErrorResponse } from '../types/index.js';
+import { logoutService } from '../services/logoutService';
+import { AuthenticatedRequest, ApiSuccessResponse, ApiErrorResponse } from '../types';
 
 interface LogoutSuccessData {
   user: {

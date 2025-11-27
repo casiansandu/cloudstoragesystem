@@ -1,6 +1,6 @@
 import { Response } from 'express';
-import { loginService } from '../services/loginService.js';
-import { LoginRequest, ApiSuccessResponse, ApiErrorResponse } from '../types/index.js';
+import { loginService } from '../services/loginService';
+import { LoginRequest, ApiSuccessResponse, ApiErrorResponse } from '../types';
 
 interface LoginSuccessData {
   user: string;

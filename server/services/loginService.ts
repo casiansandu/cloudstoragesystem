@@ -1,9 +1,8 @@
-import { comparePasswords } from '../utils/password.js';
-import db from '../db/db.js';
+import { comparePasswords } from '../utils/password';
+import db from '../db/db';
 import jwt from 'jsonwebtoken';
-import { JWT_SECRET } from '../config/config.js';
-import { UserLogin, LoginResult, User, Session, JwtPayload } from '../types/index.js';
-import { getDefaultConfig, createServerHello, authenticate } from "@scirexs/srp6a/server";
+import { JWT_SECRET } from '../config/config';
+import { UserLogin, LoginResult, User, Session, JwtPayload } from '../types';
 
 export async function loginService(credentials: UserLogin): Promise<LoginResult> {
   const { username, password } = credentials;

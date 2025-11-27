@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
-import { verifyJWT } from '../services/verifyJWT.js';
-import { AuthenticatedRequest } from '../types/index.js';
+import { verifyJWT } from '../services/verifyJWT';
+import { AuthenticatedRequest } from '../types';
 
 export async function verifyAuthMiddleware(
   req: AuthenticatedRequest,

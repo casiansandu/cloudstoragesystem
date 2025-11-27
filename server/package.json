@@ -3,14 +3,12 @@
   "version": "1.0.0",
   "description": "TypeScript server for file management application",
   "main": "dist/app.js",
-  "type": "module",
   "scripts": {
     "build": "tsc",
-    "dev": "ts-node-dev --loader ts-node/esm app.ts",
+    "dev": "ts-node-dev --respawn --transpile-only app.ts",
     "start": "node dist/app.js"
   },
   "dependencies": {
-    "@scirexs/srp6a": "^0.1.15",
     "bcrypt": "^5.1.1",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",

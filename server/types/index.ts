@@ -9,16 +9,6 @@ export interface User {
   created_at?: Date;
 }
 
-export interface SrpUserData {
-  id: string;
-  username: string;
-  email: string;
-  salt: string;
-  verifier: string;
-  created_at: Date;
-};
-
-
 export interface Session {
   username: string;
   token: string;
@@ -30,10 +20,6 @@ export type UserRegistration = Omit<User, 'id' | 'password_hash' | 'created_at'>
   password: string;
 };
 
-export type SrpUserRegistration = Omit<SrpUserData, 'id' | 'created_at'> & {
-  password?: string;
-};
-
 export type UserLogin = Pick<User, 'username'> & {
   password: string;
 };
@@ -41,8 +27,6 @@ export type UserLogin = Pick<User, 'username'> & {
 export type UserPublic = Omit<User, 'password_hash'>;
 
 export type UserCreationResult = Pick<User, 'username' | 'email'>;
-
-export type SrpUserCreationResult = Pick<User, 'username' | 'email'>;
 
 export interface LoginResult {
   username: string;
@@ -94,10 +78,6 @@ export interface CreateDirRequest extends AuthenticatedRequest {
 
 export interface RegisterRequest extends Request {
   body: UserRegistration;
-}
-
-export interface SrpRegisterRequest extends Request {
-  body: SrpUserRegistration;
 }
 
 export interface LoginRequest extends Request {

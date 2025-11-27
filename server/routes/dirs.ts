@@ -1,7 +1,7 @@
 import express, { Router } from 'express';
-import { createDirController } from '../controllers/createDirController.js';
-import { verifyAuthMiddleware } from '../middleware/authMiddleware.js';
-import { checkFolderExists } from '../middleware/checkFolderExistsMW.js';
+import { createDirController } from '../controllers/createDirController';
+import { verifyAuthMiddleware } from '../middleware/authMiddleware';
+import { checkFolderExists } from '../middleware/checkFolderExistsMW';
 
 const router: Router = express.Router();
 
