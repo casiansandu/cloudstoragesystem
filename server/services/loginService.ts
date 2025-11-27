@@ -3,6 +3,9 @@ import db from '../db/db';
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET } from '../config/config';
 import { UserLogin, LoginResult, User, Session, JwtPayload } from '../types';
+import srp from "secure-remote-password/client";
+
+
 
 export async function loginService(credentials: UserLogin): Promise<LoginResult> {
   const { username, password } = credentials;
@@ -28,7 +31,13 @@ export async function loginService(credentials: UserLogin): Promise<LoginResult>
   );
 
   if (isLoggedIn) {
-    throw new Error('Already logged in');
+    try {
+      jwt.verify(isLoggedIn.token, JWT_SECRET);
+      throw new Error('User already logged in');
+    }
+    catch {
+      await db.none('DELETE FROM sessions WHERE username = $1', [username]);
+    }
   }
 
   const payload: JwtPayload = {

@@ -8,7 +8,6 @@ export async function noAuthMiddleware(
   next: NextFunction
 ): Promise<void> {
   const token = req.cookies.token as string;
-  console.log(token)
 
   if (!token) {
     next();
@@ -17,7 +16,7 @@ export async function noAuthMiddleware(
 
   try {
     jwt.verify(token, JWT_SECRET);
-    res.status(403).json({ message: 'Already logged inasd', success: false });
+    res.status(403).json({ message: 'Already logged in', success: false });
   } catch {
     next();
   }
