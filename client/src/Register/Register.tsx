@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import config from "../../config/config.ts";
 
 export const Register = () => {
   const [email, setEmail] = useState("");
@@ -10,11 +11,12 @@ export const Register = () => {
 
   const post_register = () => {
 
-    fetch("http://localhost:3003/auth/register", {
+    fetch(`${config.BACKENDURL}/auth/register`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
+      credentials: "include",
       body: JSON.stringify({ email, username, password })
     })
       .then(res => res.json())
