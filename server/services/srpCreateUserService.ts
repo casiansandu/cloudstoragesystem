@@ -1,9 +1,9 @@
-import { hashPassword } from '../utils/password.js';
 import db from '../db/db.js';
-import { UserRegistration, UserCreationResult, User } from '../types/index.js';
+import { SrpUserRegistration, SrpUserCreationResult, User } from '../types/index.js';
 
-export async function createUserService(userData: UserRegistration): Promise<UserCreationResult> {
-  const { username, email, password } = userData;
+
+export async function srpCreateUserService(userData: SrpUserRegistration): Promise<SrpUserCreationResult> {
+  const { username, email, password, salt, verifier } = userData;
 
   const checkUsername = await db.oneOrNone<User>(
     'SELECT * FROM users WHERE username = $1',
@@ -23,14 +23,13 @@ export async function createUserService(userData: UserRegistration): Promise<Use
     throw new Error(`User with email ${email} already exists.`);
   }
 
-  const hashedPassword = await hashPassword(password);
-
   await db.none(
-    'INSERT INTO users(username, email, password_hash) VALUES($1, $2, $3)',
-    [username, email, hashedPassword]
+    `INSERT INTO srp_users (username, email, salt, verifier)
+     VALUES ($1, $2, $3, $4)`,
+    [username, email, salt, verifier]
   );
 
   return { username, email };
 }
 
-export default createUserService;
+export default srpCreateUserService;

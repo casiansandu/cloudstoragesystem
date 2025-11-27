@@ -1,8 +1,8 @@
 import { Response } from 'express';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { FILESYSTEM_ROOT } from '../config/config';
-import { CreateDirRequest } from '../types';
+import { FILESYSTEM_ROOT } from '../config/config.js';
+import { CreateDirRequest } from '../types/index.js';
 
 export async function createDirController(
   req: CreateDirRequest,

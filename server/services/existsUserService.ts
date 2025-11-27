@@ -1,5 +1,5 @@
-import db from '../db/db';
-import { User } from '../types';
+import db from '../db/db.js';
+import { User } from '../types/index.js';
 
 export async function existsUserService(username: string): Promise<boolean> {
   const user = await db.oneOrNone<User>(

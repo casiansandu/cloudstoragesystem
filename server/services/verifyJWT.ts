@@ -1,7 +1,7 @@
-import db from '../db/db';
+import db from '../db/db.js';
 import jwt from 'jsonwebtoken';
-import { JWT_SECRET } from '../config/config';
-import { JwtPayload, Session } from '../types';
+import { JWT_SECRET } from '../config/config.js';
+import { JwtPayload, Session } from '../types/index.js';
 
 export async function verifyJWT(token: string): Promise<Pick<JwtPayload, 'id' | 'username'>> {
   const sessionUser = await db.oneOrNone<Session>(

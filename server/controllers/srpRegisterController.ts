@@ -1,9 +1,9 @@
 import { Response } from 'express';
-import { createUserService } from '../services/createUserService.js';
+import { srpCreateUserService } from '../services/srpCreateUserService.js';
 import { createUserFileSpace } from '../services/createUserFileSpaceService.js';
-import { RegisterRequest, ApiSuccessResponse, ApiErrorResponse } from '../types/index.js';
+import { SrpRegisterRequest, ApiSuccessResponse, ApiErrorResponse } from '../types/index.js';
 
-interface RegisterSuccessData {
+interface SrpRegisterSuccessData {
   user: {
     username: string;
     email: string;
@@ -11,19 +11,19 @@ interface RegisterSuccessData {
   folder: string;
 }
 
-export async function registerController(
-  req: RegisterRequest,
-  res: Response<ApiSuccessResponse<RegisterSuccessData> | ApiErrorResponse>
+export async function srpRegisterController(
+  req: SrpRegisterRequest,
+  res: Response<ApiSuccessResponse<SrpRegisterSuccessData> | ApiErrorResponse>
 ): Promise<void> {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, salt, verifier} = req.body;
 
-    if (!username || !email || !password) {
+    if (!username || !email || !salt || !verifier) {
       res.status(400).json({ message: 'All fields are required', success: false });
       return;
     }
 
-    const user = await createUserService({ username, email, password });
+    const user = await srpCreateUserService({ username, email, salt, verifier });
     const folder = await createUserFileSpace({ username });
 
     res.status(201).json({
@@ -37,4 +37,4 @@ export async function registerController(
   }
 }
 
-export default registerController;
+export default srpRegisterController;

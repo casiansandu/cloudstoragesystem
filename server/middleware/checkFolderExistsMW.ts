@@ -1,8 +1,8 @@
 import path from 'path';
 import { promises as fs } from 'fs';
 import { Response, NextFunction } from 'express';
-import { FILESYSTEM_ROOT } from '../config/config';
-import { CreateDirRequest } from '../types';
+import { FILESYSTEM_ROOT } from '../config/config.js';
+import { CreateDirRequest } from '../types/index.js';
 
 export async function checkFolderExists(
   req: CreateDirRequest,

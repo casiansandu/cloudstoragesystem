@@ -1,7 +1,7 @@
 import pgPromise from 'pg-promise';
 import { IDatabase, IMain } from 'pg-promise';
-import { DB_NAME, DB_USERNAME, DB_PASSWORD } from '../config/config';
-import { User, Session } from '../types';
+import { DB_NAME, DB_USERNAME, DB_PASSWORD } from '../config/config.js';
+import { User, Session } from '../types/index.js';
 
 const pgp: IMain = pgPromise();
 
