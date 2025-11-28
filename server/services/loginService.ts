@@ -3,9 +3,6 @@ import db from '../db/db';
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET } from '../config/config';
 import { UserLogin, LoginResult, User, Session, JwtPayload } from '../types';
-import srp from "secure-remote-password/client";
-
-
 
 export async function loginService(credentials: UserLogin): Promise<LoginResult> {
   const { username, password } = credentials;

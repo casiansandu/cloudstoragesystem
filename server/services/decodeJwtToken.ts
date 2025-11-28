@@ -3,15 +3,7 @@ import jwt from 'jsonwebtoken';
 import { JWT_SECRET } from '../config/config';
 import { JwtPayload, Session } from '../types';
 
-export async function verifyJWT(token: string): Promise<Pick<JwtPayload, 'id' | 'username'>> {
-  const sessionUser = await db.oneOrNone<Session>(
-    'SELECT username FROM sessions WHERE token = $1',
-    [token]
-  );
-
-  if (!sessionUser) {
-    throw new Error('User not logged in');
-  }
+export async function decodeJwtToken(token: string): Promise<Pick<JwtPayload, 'id' | 'username'>> {
 
   let payload: JwtPayload;
   try {
@@ -23,7 +15,16 @@ export async function verifyJWT(token: string): Promise<Pick<JwtPayload, 'id' | 
     throw new Error('Invalid token');
   }
 
+  const sessionUser = await db.oneOrNone<Session>(
+    'SELECT username FROM sessions WHERE token = $1',
+    [token]
+  );
+
+  if (!sessionUser) {
+    throw new Error('User not logged in');
+  }
+
   return { id: payload.id, username: payload.username };
 }
 
-export default verifyJWT;
+export default decodeJwtToken;

@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { verifyJWT } from '../services/verifyJWT';
+import { verifyJWT } from '../services/decodeJwtToken';
 import { AuthenticatedRequest } from '../types';
 
 export async function verifyAuthMiddleware(
