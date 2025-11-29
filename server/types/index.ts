@@ -35,6 +35,23 @@ export type UserLogin = Pick<User, 'username'> & {
   password: string;
 };
 
+export type SrpLoginStart = Pick<SrpUser, 'username' > & {
+  client_public: string;
+};
+
+export type SrpLoginVerify = {
+  loginSessionId: string;
+  client_session_proof: string;
+};
+
+export interface SrpLoginStartRequest extends Request {
+  body: SrpLoginStart;
+}
+
+export interface SrpLoginVerifyRequest extends Request {
+  body: SrpLoginVerify;
+}
+
 export type UserPublic = Omit<User, 'password_hash'>;
 
 export type UserCreationResult = Pick<User, 'username' | 'email'>;
@@ -109,6 +126,7 @@ export interface Config {
   DB_USERNAME: string;
   DB_PASSWORD: string;
   FILESYSTEM_ROOT: string;
+  REDIS_URL: string;
 }
 
 // Database Query Results

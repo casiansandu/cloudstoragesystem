@@ -2,7 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_BACKENDURL: string;
-  // add more VITE_ variables here as needed
+  // add more VITE_ variables
 }
 
 interface ImportMeta {

@@ -1,23 +1,49 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import config from "../../config/config.ts";
+import srp from "secure-remote-password/client"
 
-export const Register = () => {
+
+export const SrpRegister = () => {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  const navigate = useNavigate()
+  const navigate = useNavigate();
+
+  const salt = srp.generateSalt();
+  const privateKey = srp.derivePrivateKey(salt, username, password);
+  const verifier = srp.deriveVerifier(privateKey);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const res = await fetch(`${config.BACKENDURL}/auth/status`, {
+          credentials: "include"
+        });
+        const data = await res.json();
+        if (data.isAuthenticated) {
+          navigate("/home");
+        }
+      } catch {
+        // Not logged in, stay on login page
+      }
+    };
+
+    checkAuth();
+  }, [navigate]);
 
   const post_register = () => {
 
-    fetch(`${config.BACKENDURL}/auth/register`, {
+    console.log("Registering user:", { username, email, salt, verifier });
+
+    fetch(`${config.BACKENDURL}/auth/srpregister`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       credentials: "include",
-      body: JSON.stringify({ email, username, password })
+      body: JSON.stringify({ username, email, salt, verifier })
     })
       .then(res => res.json())
       .then(data => {

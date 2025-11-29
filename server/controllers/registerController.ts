@@ -1,6 +1,5 @@
 import { Response } from 'express';
 import { createUserService } from '../services/createUserService';
-import { createUserFileSpace } from '../services/createUserFileSpaceService';
 import { RegisterRequest, ApiSuccessResponse, ApiErrorResponse } from '../types';
 
 interface RegisterSuccessData {
@@ -8,7 +7,6 @@ interface RegisterSuccessData {
     username: string;
     email: string;
   };
-  folder: string;
 }
 
 export async function registerController(
@@ -24,11 +22,10 @@ export async function registerController(
     }
 
     const user = await createUserService({ username, email, password });
-    const folder = await createUserFileSpace({ username });
 
     res.status(201).json({
       message: 'User registered successfully',
-      data: { user, folder },
+      data: { user },
       success: true
     });
   } catch (error) {

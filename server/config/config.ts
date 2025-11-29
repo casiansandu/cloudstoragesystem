@@ -9,16 +9,17 @@ const config: Config = {
   DB_NAME: process.env.DB_NAME || '',
   DB_USERNAME: process.env.DB_USERNAME || '',
   DB_PASSWORD: process.env.DB_PASSWORD || '',
-  FILESYSTEM_ROOT: process.env.FILESYSTEM_ROOT || ''
+  FILESYSTEM_ROOT: process.env.FILESYSTEM_ROOT || '',
+  REDIS_URL: process.env.REDIS_URL || '',
 };
 
 // Validate required environment variables
-const requiredEnvVars: (keyof Config)[] = ['JWT_SECRET', 'DB_NAME', 'DB_USERNAME', 'DB_PASSWORD', 'FILESYSTEM_ROOT'];
+const requiredEnvVars: (keyof Config)[] = ['JWT_SECRET', 'DB_NAME', 'DB_USERNAME', 'DB_PASSWORD', 'FILESYSTEM_ROOT', 'REDIS_URL'];
 const missingEnvVars = requiredEnvVars.filter(key => !config[key]);
 
 if (missingEnvVars.length > 0) {
   throw new Error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
 }
 
-export const { PORT, JWT_SECRET, DB_NAME, DB_USERNAME, DB_PASSWORD, FILESYSTEM_ROOT } = config;
+export const { PORT, JWT_SECRET, DB_NAME, DB_USERNAME, DB_PASSWORD, FILESYSTEM_ROOT, REDIS_URL } = config;
 export default config;

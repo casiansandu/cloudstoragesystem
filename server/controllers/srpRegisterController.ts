@@ -1,8 +1,6 @@
 import { Response } from 'express';
 import { createSrpUserService } from '../services/createSrpUserService';
-import { createUserFileSpace } from '../services/createUserFileSpaceService';
 import { SrpRegisterRequest, ApiSuccessResponse, ApiErrorResponse } from '../types';
-import srp from "secure-remote-password/client";
 
 
 interface RegisterSuccessData {
@@ -10,7 +8,6 @@ interface RegisterSuccessData {
     username: string;
     email: string;
   };
-  folder: string;
 }
 
 export async function registerController(
@@ -27,11 +24,10 @@ export async function registerController(
     }
 
     const user = await createSrpUserService({ username, email, salt, verifier });
-    const folder = await createUserFileSpace({ username });
 
     res.status(201).json({
       message: 'Srp User registered successfully',
-      data: { user, folder },
+      data: { user },
       success: true
     });
   } catch (error) {

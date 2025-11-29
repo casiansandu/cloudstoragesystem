@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { verifyJWT } from '../services/decodeJwtToken';
+import { verifyJwtToken } from '../services/verifyJwt';
 import { AuthenticatedRequest } from '../types';
 
 export async function verifyAuthMiddleware(
@@ -15,10 +15,10 @@ export async function verifyAuthMiddleware(
   }
 
   try {
-    const { username } = await verifyJWT(token);
+    const { username } = await verifyJwtToken(token);
     req.user = username;
     next();
-  } catch (error) {
+  } catch {
     res.status(401).json({ error: 'Invalid session' });
   }
 }

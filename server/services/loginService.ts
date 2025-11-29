@@ -46,7 +46,7 @@ export async function loginService(credentials: UserLogin): Promise<LoginResult>
     expiresIn: '1h',
   });
 
-  await db.none('INSERT INTO sessions VALUES($1, $2)', [username, token]);
+  //await db.none('INSERT INTO sessions VALUES($1, $2)', [username, token]);
 
   return { username, token };
 }
