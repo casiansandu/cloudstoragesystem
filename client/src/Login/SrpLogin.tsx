@@ -1,7 +1,15 @@
-import React, { use, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import config from "../../config/config";
 import srp from "secure-remote-password/client";
+import type {
+  AuthCheckResponse,
+  SrpLoginStartResponse,
+  SrpLoginVerifyResponse,
+  GetUserKeysResponse
+} from "../utils/apiTypes";
+import { bufferToHex, deriveKEK, hexToBuffer } from "../../utils/crypto";
+import { decrypt } from "../../utils/crypto";
 
 export const SrpLogin = () => {
 
@@ -17,7 +25,7 @@ export const SrpLogin = () => {
         const res = await fetch(`${config.BACKENDURL}/auth/status`, {
           credentials: "include"
         });
-        const data = await res.json();
+        const data: AuthCheckResponse = await res.json();
         if (data.isAuthenticated) {
           navigate("/home");
         }
@@ -41,10 +49,10 @@ export const SrpLogin = () => {
         body: JSON.stringify({ username, client_public }),
       });
 
-      const startData = await startRes.json();
+      const startData: SrpLoginStartResponse = await startRes.json();
       if (!startData.success) throw new Error(startData.message);
 
-      console.log("Received start data:", startData);
+      //console.log("Received start data:", startData);
 
       const loginSessionId = startData.data.loginSessionId;
 
@@ -67,7 +75,7 @@ export const SrpLogin = () => {
         }),
       });
 
-      const verifyData = await verifyRes.json();
+      const verifyData: SrpLoginVerifyResponse = await verifyRes.json();
       if (!verifyData.success) throw new Error(verifyData.message);
 
       srp.verifySession(
@@ -75,6 +83,52 @@ export const SrpLogin = () => {
         clientSession,
         verifyData.data.server_session_proof
       );
+
+      await fetch(`${config.BACKENDURL}/files/keys`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+      }).then(res => res.json() as Promise<GetUserKeysResponse>).then(async data => {
+          if (!data.success) {
+            throw new Error(data.message);
+          }
+          console.log("Fetched file encryption keys:", data);
+
+          try {
+            const kek = await deriveKEK(
+              password,
+              Uint8Array.from(hexToBuffer(data.data.encryption_salt))
+            );
+
+
+            const private_key_data = new Uint8Array(hexToBuffer(data.data.encrypted_private_key));
+            const private_key_nonce = private_key_data.slice(0, 12);
+            const private_key_ciphertext = private_key_data.slice(12);
+
+            const decryptedPrivateKey = await decrypt(
+              private_key_ciphertext,
+              kek,
+              private_key_nonce
+            );
+
+            const dir_key_data = Uint8Array.from(hexToBuffer(data.data.encrypted_directory_key));
+            const dir_key_nonce = dir_key_data.slice(0, 12);
+            const dir_key_ciphertext = dir_key_data.slice(12);
+
+            const decrypted_directory_key = await decrypt(
+              dir_key_ciphertext,
+              kek,
+              dir_key_nonce
+            );
+
+            globalThis.sessionStorage.setItem("decrypted_private_key", bufferToHex(new Uint8Array(decryptedPrivateKey)));
+            globalThis.sessionStorage.setItem("encryption_public_key", data.data.encryption_public_key);
+            globalThis.sessionStorage.setItem("decrypted_directory_key", bufferToHex(new Uint8Array(decrypted_directory_key)));
+          } catch (err) {
+            console.error("Error decrypting keys:", err);
+            return;
+          }
+        });
 
       alert("Login successful");
       navigate("/home");
@@ -85,7 +139,7 @@ export const SrpLogin = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

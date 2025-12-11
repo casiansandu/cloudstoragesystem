@@ -1,5 +1,5 @@
 
-import { SrpUser } from '../types/index';
+/*import { SrpUser } from '../types/index';
 import db from '../db/db';
 import decodeJwtToken from './verifyJwt';
 
@@ -17,4 +17,4 @@ export async function getMeFromTokenService(token: string): Promise<Pick<SrpUser
     }
 
     return user;
-}
+}*/

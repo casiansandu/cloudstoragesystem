@@ -1,9 +1,17 @@
 import db from '../db/db';
 import { SrpUserRegistration, UserCreationResult, User } from '../types';
-//import {srp} from 'secure-remote-password/server'; 
 
 export async function createSrpUserService(userData: SrpUserRegistration): Promise<UserCreationResult> {
-  const { username, email, salt, verifier } = userData;
+  const { 
+    username,
+    email,
+    srp_salt,
+    srp_verifier,
+    encryption_salt,
+    encrypted_private_key,
+    encryption_public_key,
+    encrypted_directory_key
+  } = userData;
 
   const checkUsername = await db.oneOrNone<User>(
     'SELECT * FROM srp_users WHERE username = $1',
@@ -24,8 +32,10 @@ export async function createSrpUserService(userData: SrpUserRegistration): Promi
   }
 
   await db.none(
-    'INSERT INTO srp_users(username, email, salt, verifier) VALUES($1, $2, $3, $4)',
-    [username, email, salt, verifier]
+    'INSERT INTO srp_users(username, email, srp_salt, srp_verifier, encryption_salt, encryption_public_key, encrypted_private_key, encrypted_directory_key) VALUES($1, $2, $3, $4, $5, $6, $7, $8)',
+    [username, email, 
+      srp_salt, srp_verifier, 
+      encryption_salt, encryption_public_key, encrypted_private_key, encrypted_directory_key]
   );
 
   return { username, email };

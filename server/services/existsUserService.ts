@@ -1,9 +1,9 @@
 import db from '../db/db';
-import { User } from '../types';
+import { SrpUser, User } from '../types';
 
 export async function existsUserService(username: string): Promise<boolean> {
-  const user = await db.oneOrNone<User>(
-    'SELECT * FROM users WHERE username = $1',
+  const user = await db.oneOrNone<SrpUser>(
+    'SELECT * FROM srp_users WHERE username = $1',
     [username]
   );
 

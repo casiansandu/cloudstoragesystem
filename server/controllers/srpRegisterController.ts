@@ -16,14 +16,30 @@ export async function registerController(
 ): Promise<void> {
   try {
     console.log("Received: ", req.body);
-    const { username, email, salt, verifier } = req.body;
+    const { 
+      username, email, 
+      srp_salt, srp_verifier, 
+      encryption_salt, encryption_public_key,  encrypted_private_key, encrypted_directory_key} = req.body;
 
-    if (!username || !email || !salt || !verifier) {
+    if (!username || !email || 
+      !srp_salt || !srp_verifier || 
+      !encryption_salt || !encryption_public_key || !encrypted_private_key || !encrypted_directory_key) {
       res.status(400).json({ message: 'All fields are required', success: false });
       return;
     }
 
-    const user = await createSrpUserService({ username, email, salt, verifier });
+    const user = await createSrpUserService({ 
+      username, 
+      email, 
+
+      srp_salt, 
+      srp_verifier, 
+
+      encryption_salt, 
+      encrypted_private_key, 
+      encryption_public_key,
+      encrypted_directory_key
+    });
 
     res.status(201).json({
       message: 'Srp User registered successfully',

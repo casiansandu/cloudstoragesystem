@@ -18,19 +18,19 @@ function ListGroup(props: Props) {
     {props.items.length === 0 && <p>No item found</p>}
 
     {props.items.length > 0 && (
-        <>
-      <ul className="list-group">
-        {props.items.map((item, index) => (
-          <li className = {index === selectedIndex ? 
-            'list-group-item active' : 
-            'list-group-item'} 
-          key={item} 
-          onClick={() => {
-            setSelectedIndex(index)
-            props.onSelectItem(item)
-        }}>{item}</li>
-        ))}
-      </ul>
+      <>
+        <ul className="list-group">
+          {props.items.map((item, index) => (
+            <li className = {index === selectedIndex ? 
+              'list-group-item active' : 
+              'list-group-item'} 
+            key={item} 
+            onClick={() => {
+              setSelectedIndex(index)
+              props.onSelectItem(item)
+          }}>{item}</li>
+          ))}
+        </ul>
       </>
     )}
   </>

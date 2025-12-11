@@ -43,7 +43,6 @@ export async function srpLoginVerify(
     req: SrpLoginVerifyRequest, 
     res: Response<ApiSuccessResponse<SrpLoginVerifySuccessData> | ApiErrorResponse>
 ) {
-    console.log(`Verifying SRP login for session ID: ${req.body.loginSessionId}\nwith client session proof: ${req.body.client_session_proof}`);
 
     if (!req.body.loginSessionId || !req.body.client_session_proof) {
         res.status(400).json({ message: 'loginSessionId and clientSessionProof are required', success: false });
@@ -68,6 +67,7 @@ export async function srpLoginVerify(
             data: { server_session_proof, token },
             success: true
         });
+        console.log("SRP login verified successfully");
         return;
     } catch (error) {
         res.status(500).json({ message: (error as Error).message, success: false });

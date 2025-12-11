@@ -1,8 +1,6 @@
 
 import type { ReactNode } from "react"
 
-
-
 interface Props {
     children: ReactNode,
     color?: 'primary' | 'danger' | 'secondary',

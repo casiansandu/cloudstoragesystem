@@ -1,0 +1,91 @@
+// Types for API responses from backend controllers
+
+// 1. Auth check (checkLoggedIn)
+export interface AuthCheckResponse {
+  success: boolean;
+  isAuthenticated: boolean;
+  message: string;
+}
+
+// 2. Create directory (createDirController)
+export interface CreateDirSuccessResponse {
+  message: string;
+}
+export interface ErrorResponse {
+  error: string;
+}
+
+export interface UserFile {
+  filename: string;
+}
+export interface GetAllUserFilesResponse {
+  message: string;
+  data: {
+    files: UserFile[];
+  };
+  success: boolean;
+}
+
+// 4. Get all users (getAllUsersController)
+export interface User {
+  id: number;
+  username: string;
+  email: string;
+  created_at?: string;
+}
+export interface GetAllUsersResponse {
+  users: User[];
+}
+
+// 5. Get user keys (getUserKeysController)
+export interface GetUserKeysResponse {
+  message: string;
+  data: {
+    encryption_salt: string;
+    encrypted_private_key: string;
+    encryption_public_key: string;
+    encrypted_directory_key: string;
+    encryption_nonce: string;
+  };
+  success: boolean;
+}
+
+// 6. SRP Login Start (srpLoginStart)
+export interface SrpLoginStartResponse {
+  message: string;
+  data: {
+    salt: string;
+    server_public: string;
+    loginSessionId: string;
+  };
+  success: boolean;
+}
+
+// 7. SRP Login Verify (srpLoginVerify)
+export interface SrpLoginVerifyResponse {
+  message: string;
+  data: {
+    server_session_proof: string;
+    token: string;
+  };
+  success: boolean;
+}
+
+// 8. SRP Register (registerController)
+export interface SrpRegisterResponse {
+  message: string;
+  data: {
+    user: {
+      username: string;
+      email: string;
+    };
+  };
+  success: boolean;
+}
+
+// Generic error response (used in multiple places)
+export interface ApiErrorResponse {
+  message: string;
+  success: false;
+  error?: string;
+}

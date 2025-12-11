@@ -2,7 +2,7 @@ import { Request } from 'express';
 
 // Database Models
 export interface User {
-  id: number;
+  id: string;
   username: string;
   email: string;
   password_hash: string;
@@ -10,12 +10,18 @@ export interface User {
 }
 
 export interface SrpUser {
-  id: number;
+  id: string;
   username: string;
   email: string;
   created_at?: Date;
-  salt: string;
-  verifier: string;
+
+  srp_salt: string;
+  srp_verifier: string;
+
+  encryption_salt: string;
+  encryption_public_key: string;
+  encrypted_private_key: string;
+  encrypted_directory_key: string;
 }
 
 export interface Session {
@@ -30,6 +36,13 @@ export type UserRegistration = Omit<User, 'id' | 'password_hash' | 'created_at'>
 };
 
 export type SrpUserRegistration = Omit<SrpUser, 'id' | 'created_at'>;
+
+export interface FileUploadRequest extends AuthenticatedRequest {
+  body: {
+    path: string;
+    file_size: number;
+  };
+};
 
 export type UserLogin = Pick<User, 'username'> & {
   password: string;
@@ -55,6 +68,8 @@ export interface SrpLoginVerifyRequest extends Request {
 export type UserPublic = Omit<User, 'password_hash'>;
 
 export type UserCreationResult = Pick<User, 'username' | 'email'>;
+
+export type GetKeysResult = Pick<SrpUser, 'encryption_salt' | 'encryption_public_key' | 'encrypted_private_key' | 'encrypted_directory_key'>;
 
 export type SrpCredentials = Omit<SrpUser, 'id' | 'created_at'>;
 
@@ -97,7 +112,7 @@ export interface JwtPayload {
 
 // Express Request Extensions
 export interface AuthenticatedRequest extends Request {
-  user?: string;
+  user?: { id: string; username: string };
 }
 
 export interface CreateDirRequest extends AuthenticatedRequest {
