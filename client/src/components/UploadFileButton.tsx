@@ -1,25 +1,15 @@
 import { useState, type ChangeEvent } from 'react';
-import { deriveChunkKey, encrypt, generateMasterKey } from '../../utils/crypto';
-import config from '../../config/config';
+import uploadFile from './UploadFileFeature/uploadFile';
 
-type ManifestData = {
-  filename: string;
-  totalChunks: number;
-  uploadedAt: string;
-  encryptedFileKeyBase64: string; 
-  chunkInfos: {
-    index: number;
-    ciphertextLength: number;
-    ciphertextHashBase64: string;
-  }[];
-};
+interface UploadFileButtonProps {
+  onUploadSuccess?: () => void;
+}
 
-const CompactEncryptedUpload = () => {
+const EncryptedUpload = ({ onUploadSuccess } : UploadFileButtonProps) => {
     
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [status, setStatus] = useState<string>("");
 
-    // Type the event properly as an Input Change Event
     const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
         if (event.target.files && event.target.files.length > 0) {
             setSelectedFile(event.target.files[0]);
@@ -34,59 +24,16 @@ const CompactEncryptedUpload = () => {
         }
 
         try {
-            //setStatus("Encrypting...");
-            //setStatus("Uploading...");
             
-            let file_id = "";
+            setStatus("Uploading...");
 
-            await fetch(`${config.BACKENDURL}files/upload/start`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    path: "/",
-                    file_size: 2048,
-                }),
-                credentials: "include"
-            }).then(res => res.json()).then(data => {
-                file_id = data.data.file_id
-                console.log("Upload started: for file ", file_id);
-            })
+            await uploadFile(selectedFile);
 
-            
-            const buffer = await selectedFile.arrayBuffer();
-            const file_data_uint8 = new Uint8Array(buffer);
+            setStatus("Upload successful!");
 
-            const chunk_size = 1 * 1024 * 1024; // 1 MB
-            const chunk_number = Math.ceil(selectedFile.size / chunk_size);
-            
-            const file_master_key = await generateMasterKey();
-
-            let chunk_index = 0;
-            while (chunk_index < chunk_number) {
-                const chunk_key = await deriveChunkKey(
-                    file_master_key,
-                    chunk_index,
-                    "file_id_placeholder"
-                );
-
-                const chunk_start = chunk_index * chunk_size;
-                const chunk_end = Math.min(chunk_start + chunk_size, selectedFile.size);
-
-                const file_chunk = file_data_uint8.slice(chunk_start, chunk_end);
-                console.log(`Uploading chunk ${chunk_index + 1} / ${chunk_number}`);
-
-
-                const enc_chunk = await encrypt(file_chunk, chunk_key);
-
-                console.log(enc_chunk.ciphertext);
-                chunk_index += 1;
-            }
-            
-            
-
-            setStatus("File Uploaded Successfully!");
-
-            console.log(file_data_uint8.length);
+            if (onUploadSuccess) {
+                onUploadSuccess();
+            }            
 
         } catch (error) {
             console.error("Error uploading file:", error);
@@ -116,4 +63,6 @@ const CompactEncryptedUpload = () => {
     );
 };
 
-export default CompactEncryptedUpload;
+export default EncryptedUpload;
+
+

@@ -8,7 +8,7 @@ const redis = new Redis(config.REDIS_URL, {
 });
 
 interface SrpSessionData {
-    id: number;
+    id: string;
   b: string; // Server Secret Ephemeral
   B: string; // Server Public Ephemeral
   A: string; // Client Public Ephemeral

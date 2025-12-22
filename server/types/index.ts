@@ -1,4 +1,5 @@
 import { Request } from 'express';
+import { BufferSource } from 'stream/web';
 
 // Database Models
 export interface User {
@@ -37,8 +38,17 @@ export type UserRegistration = Omit<User, 'id' | 'password_hash' | 'created_at'>
 
 export type SrpUserRegistration = Omit<SrpUser, 'id' | 'created_at'>;
 
+export interface FinishFileUploadRequest extends AuthenticatedRequest {
+  encyrpted_manifest: Uint8Array;
+}
+
 export interface FileUploadRequest extends AuthenticatedRequest {
+  body: Uint8Array;
+};
+
+export interface StartFileUploadRequest extends AuthenticatedRequest {
   body: {
+    name: string;
     path: string;
     file_size: number;
   };
@@ -104,10 +114,17 @@ export interface ApiErrorResponse extends ApiResponse {
 
 // JWT Payload
 export interface JwtPayload {
-  id: number;
+  id: string;
   username: string;
   iat?: number;
   exp?: number;
+}
+
+//Get all file names
+export interface GetAllFilesData {
+    files: Array<{
+        name: string;
+    }>;
 }
 
 // Express Request Extensions

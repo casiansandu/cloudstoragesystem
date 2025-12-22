@@ -4,13 +4,7 @@ import config from "../../config/config.ts";
 import srp from "secure-remote-password/client"
 import { generateMasterKey, deriveKEK, encrypt, bufferToHex, generateAsymKeyPair } from "../../utils/crypto.ts";
 import type { AuthCheckResponse, SrpRegisterResponse } from "../utils/apiTypes";
-
-function concatUint8(a: Uint8Array, b: Uint8Array): Uint8Array {
-    const result = new Uint8Array(a.length + b.length);
-    result.set(a, 0);
-    result.set(b, a.length);
-    return result;
-}
+import { concatUint8 } from "../utils/funcs.ts";
 
 export const SrpRegister = () => {
   const [email, setEmail] = useState("");
@@ -85,6 +79,7 @@ export const SrpRegister = () => {
 
     console.log("Generated key pair");
     const { publicKey, privateKey } = await generateAsymKeyPair();
+    console.log(publicKey.byteLength)
     //A, a
 
     const encryptionSalt = globalThis.crypto.getRandomValues(new Uint8Array(16));

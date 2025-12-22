@@ -48,7 +48,10 @@ export const hexToBuffer = (hex: string): Uint8Array => {
   return new Uint8Array(match.map((byte) => Number.parseInt(byte, 16)));
 };
 
-
+/** 
+  * Generates a random Master Key (256-bit AES key) and returns it as raw bytes.
+  * Used for encrypting file contents.
+  */
 export const generateMasterKey = async (): Promise<BufferSource> => {
   const key: CryptoKey = await subtle.generateKey(
     { name: "AES-GCM", length: 256 },
@@ -77,6 +80,8 @@ export const generateAsymKeyPair = async (): Promise<{ publicKey: ArrayBuffer; p
 
   return { publicKey, privateKey };
 }
+
+
 export const deriveKEK = async (password: string, salt: BufferSource): Promise<CryptoKey> => {
   const passwordKey: CryptoKey = await subtle.importKey(
     "raw",
@@ -100,11 +105,73 @@ export const deriveKEK = async (password: string, salt: BufferSource): Promise<C
   );
 };
 
+/** 2. ENCRYPT (RSA-OAEP)
+ * Encrypts data using RSA-OAEP with the provided public key.
+ * @param data - The data to encrypt.
+ * @param publicKey - The RSA public key.
+ * @returns Encrypted data as Uint8Array.
+ */
+export const encryptRSA = async (
+  data: BufferSource,
+  publicKey: BufferSource
+): Promise<Uint8Array> => {
+  const cryptoKey = await subtle.importKey(
+    "spki",
+    publicKey,
+    {
+      name: "RSA-OAEP",
+      hash: { name: "SHA-256" }
+    },
+    false,
+    ["encrypt"]
+  );
+
+  const encryptedBuffer = await subtle.encrypt(
+    {
+      name: "RSA-OAEP"
+    },
+    cryptoKey,
+    data
+  );
+  return new Uint8Array(encryptedBuffer);
+}
+
+/** 5. DECRYPT (RSA-OAEP)
+ * Decrypts data using RSA-OAEP with the provided private key.
+ * @param ciphertext - The encrypted data to decrypt.
+ * @param privateKey - The RSA private key.
+ * @returns Decrypted data as Uint8Array.
+ */
+export const decryptRSA = async (
+  ciphertext: BufferSource,
+  privateKey: BufferSource
+): Promise<Uint8Array> => {
+  const cryptoKey = await subtle.importKey(
+    "pkcs8",
+    privateKey,
+    {
+      name: "RSA-OAEP",
+      hash: { name: "SHA-256" }
+    },
+    false,
+    ["decrypt"]
+  );
+
+  const decryptedBuffer = await subtle.decrypt(
+    {
+      name: "RSA-OAEP"
+    },
+    cryptoKey,
+    ciphertext
+  );
+  return new Uint8Array(decryptedBuffer);
+}
 
 /**
  * 3. ENCRYPT (AES-GCM)
  * Encrypts data using a generic key.
  * @param key - Can be a CryptoKey (for KEK) or BufferSource (raw bytes for MasterKey/FileKey)
+ * @returns EncryptedResult containing ciphertext and nonce(12 bytes)
  */
 export const encrypt = async (
   data: string | BufferSource,
@@ -200,6 +267,11 @@ export async function deriveChunkKey(
 
 /**
  * 4. DECRYPT (AES-GCM)
+ * Decrypts data using a generic key.
+ * @param ciphertext - The encrypted data to decrypt.
+ * @param key - Can be a CryptoKey (for KEK) or BufferSource (raw bytes for MasterKey/FileKey)
+ * @param iv - The nonce used during encryption (12 bytes).
+ * @returns Decrypted data as Uint8Array.
  */
 export const decrypt = async (
   ciphertext: BufferSource,

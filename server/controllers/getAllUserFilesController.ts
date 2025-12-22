@@ -1,18 +1,12 @@
 import getAllUserFilesService from "../services/getAllUserFilesService";
-import { ApiErrorResponse, ApiSuccessResponse } from "../types";
+import { ApiErrorResponse, ApiSuccessResponse, GetAllFilesData } from "../types";
 import verifyJwtToken from "../services/verifyJwt";
 import { Request, Response } from 'express';
-
-interface GetAllFilesSuccessData {
-    files: Array<{
-        filename: string;
-    }>;
-}
 
 
 export async function getAllUserFilesController(
     req: Request, 
-    res: Response<ApiSuccessResponse<GetAllFilesSuccessData> | ApiErrorResponse>) : Promise<void> {
+    res: Response<ApiSuccessResponse<GetAllFilesData> | ApiErrorResponse>) : Promise<void> {
     const token = req.cookies?.token;
     
     if (!token) {
@@ -21,15 +15,13 @@ export async function getAllUserFilesController(
     }
 
     try {
-        const { username } = await verifyJwtToken(token);
-        const files = await getAllUserFilesService(username);
+        const { id } = await verifyJwtToken(token);
+        const files = await getAllUserFilesService(id);
+        console.log(files);
         res.status(200).json({ message: 'Files retrieved successfully', data: { files }, success: true });
         return;
     } catch (error) {
-        res.status(500).json({
-            message: (error as Error).message,
-            success: false
-        });
+        res.status(500).json({ message: (error as Error).message, success: false });
         return;
     }
 

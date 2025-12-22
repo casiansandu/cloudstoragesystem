@@ -2,8 +2,10 @@ import { useNavigate } from "react-router-dom";
 
 import config from "../../config/config";
 
+
 export const LogoutButton = () => {
-  const navigate = useNavigate();
+
+const navigate = useNavigate();
 
   const handleLogout = async () => {
     globalThis.sessionStorage.clear();
@@ -31,3 +33,4 @@ export const LogoutButton = () => {
     </button>
   );
 };
+

@@ -7,16 +7,36 @@ export interface AuthCheckResponse {
   message: string;
 }
 
-// 2. Create directory (createDirController)
-export interface CreateDirSuccessResponse {
+// 2. File upload (generic file upload response)
+export type FileUploadResponse = {
   message: string;
+  data?: {
+    file_id?: string;
+    stored_bytes?: number;
+  };
+  success: boolean;
 }
+
+
+export type ManifestData = {
+  file_id: string;
+  totalChunks: number;
+  uploadedAt: string;
+  encryptedFileKey: string; 
+  chunkInfos: {
+    index: number;
+    id: string;
+    ciphertextLength: number;
+  }[];
+};
+
 export interface ErrorResponse {
   error: string;
 }
 
 export interface UserFile {
-  filename: string;
+  id: string;
+  name: string;
 }
 export interface GetAllUserFilesResponse {
   message: string;
