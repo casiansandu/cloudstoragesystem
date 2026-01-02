@@ -25,6 +25,14 @@ export interface SrpUser {
   encrypted_directory_key: string;
 }
 
+export interface UserAccess {
+  encrypted_file_key: string;
+  file_id: string;
+  access_id: string;
+  user_id: string;
+  encrypted_manifest_key: string;
+}
+
 export interface Session {
   username: string;
   token: string;
@@ -42,6 +50,10 @@ export interface FinishFileUploadRequest extends AuthenticatedRequest {
   encyrpted_manifest: Uint8Array;
 }
 
+export interface LoginStatusResponse {
+  isAuthenticated: boolean;
+}
+
 export interface FileUploadRequest extends AuthenticatedRequest {
   body: Uint8Array;
 };
@@ -51,6 +63,8 @@ export interface StartFileUploadRequest extends AuthenticatedRequest {
     name: string;
     path: string;
     file_size: number;
+    encrypted_file_key: string;
+    encrypted_manifest_key: string;
   };
 };
 
@@ -75,13 +89,28 @@ export interface SrpLoginVerifyRequest extends Request {
   body: SrpLoginVerify;
 }
 
+export interface ShareFileRequest extends AuthenticatedRequest {
+  body: {
+    file_id: string;
+    recipient_username: string;
+    encrypted_file_key: string;
+    encrypted_manifest_key: string;
+  };
+}
+
 export type UserPublic = Omit<User, 'password_hash'>;
 
 export type UserCreationResult = Pick<User, 'username' | 'email'>;
 
 export type GetKeysResult = Pick<SrpUser, 'encryption_salt' | 'encryption_public_key' | 'encrypted_private_key' | 'encrypted_directory_key'>;
+export type GetPublicKeyResult = Pick<SrpUser, 'encryption_public_key'>;
+export type GetManifestKeyResult = Pick<UserAccess, 'encrypted_manifest_key'>;
 
 export type SrpCredentials = Omit<SrpUser, 'id' | 'created_at'>;
+
+export interface GetFileMasterKeyResult {
+  encrypted_master_key: string;
+}
 
 export interface LoginResult {
   username: string;
@@ -103,7 +132,7 @@ export interface ApiResponse<T = unknown> {
 export interface ApiSuccessResponse<T = unknown> extends ApiResponse<T> {
   message: string;
   success: true;
-  data: T;
+  data?: T;
 }
 
 export interface ApiErrorResponse extends ApiResponse {
@@ -125,6 +154,10 @@ export interface GetAllFilesData {
     files: Array<{
         name: string;
     }>;
+}
+
+export interface OwnershipTestResult {
+    isOwner: boolean;
 }
 
 // Express Request Extensions
@@ -159,6 +192,7 @@ export interface Config {
   DB_PASSWORD: string;
   FILESYSTEM_ROOT: string;
   REDIS_URL: string;
+  FOLDER_NAMING_SECRET: string;
 }
 
 // Database Query Results

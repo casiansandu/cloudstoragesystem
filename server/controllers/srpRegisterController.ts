@@ -15,7 +15,7 @@ export async function registerController(
   res: Response<ApiSuccessResponse<RegisterSuccessData> | ApiErrorResponse>
 ): Promise<void> {
   try {
-    console.log("Received: ", req.body);
+    //console.log("Received: ", req.body);
     const { 
       username, email, 
       srp_salt, srp_verifier, 

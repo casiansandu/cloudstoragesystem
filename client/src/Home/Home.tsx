@@ -1,14 +1,16 @@
 import config from "../../config/config"
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import UploadFileButton from "../components/UploadFileButton";
-import type { GetAllUserFilesResponse, UserFile, ManifestData } from "../utils/apiTypes";
+import type { GetAllUserFilesResponse, UserFile } from "../utils/apiTypes";
 import { LogoutButton } from "../components/LogoutButton";
-import { decrypt, decryptRSA, deriveChunkKey, hexToBuffer } from "../../utils/crypto";
+import { decrypt, hexToBuffer, bufferToHex, decryptRSA } from "../../utils/crypto";
 import { useNavigate } from "react-router-dom";
-import Button from "../components/Button";
-import { gen_uuidv5 } from "../utils/funcs";
-import { sha256 } from "js-sha256";
-import streamSaver from 'streamSaver';
+import { downloadFile, verifyOwnership, getManifestData, hasAccess } from "../components/DownloadFileFeature/downloadFile";
+import FileRow from "../components/FileRow";
+import FileActionsBar from "../components/FileActionsBar";
+import deleteFile from "../components/DeleteFileFeature/deleteFile";
+import shareFile from "../components/ShareFileFeature/shareFile";
+import SharePopup from "../components/SharePopup";
 
 const getFiles = async () => {
   try {
@@ -28,107 +30,53 @@ const getFiles = async () => {
   }
 }
 
-const fetchChunk = async (uuid: string) => {
+const getAuth = async (): Promise<boolean> => {
+  try {
+    const res = await fetch(`${config.BACKENDURL}/auth/status`, {
+      method: "GET",
+      credentials: "include"
+    });
+    
+    if (!res.ok) return false; 
 
-  const res = await fetch(`${config.BACKENDURL}/files/chunk/${uuid}`, {
+    const data = await res.json();
+    return data.data?.isAuthenticated === true;
+  } catch (error) {
+    console.error("Auth check failed:", error);
+    return false;
+  }
+}
+
+const getFileKey = async (file_id: string): Promise<string> => {
+  await hasAccess(file_id);
+
+  const res = await fetch(`${config.BACKENDURL}/files/${file_id}/key`, {
     method: "GET",
     credentials: "include"
   });
 
-  return (await res.arrayBuffer());
-}
-
-
-
-
-const downloadFile = async (file_id: string, file_name: string) => {
-  console.log("Download initiated for file:", file_id);
-
-  const manifest_name = sha256(file_id + "manifest");
-  
-  const manifest_data = await fetchChunk(gen_uuidv5(manifest_name));
-
-  const wrapped_key = manifest_data.slice(0, 256);
-  const enc_manifest_nonce = manifest_data.slice(256, 256 + 12);
-  const enc_manifest_ciphertext = manifest_data.slice(256 + 12);
-  const manifest_key = await decryptRSA(
-    wrapped_key,
-    hexToBuffer(globalThis.sessionStorage.getItem("decrypted_private_key")!) as BufferSource
-  );
-
-  const manifest = (await decrypt(
-    enc_manifest_ciphertext,
-    manifest_key as BufferSource,
-    enc_manifest_nonce
-  ));
-
-  const manifest_json: ManifestData = JSON.parse(new TextDecoder().decode(manifest));
-
-  console.log("Manifest data:", manifest_json);
-
-  const file_key = await decryptRSA(
-    hexToBuffer(manifest_json.encryptedFileKey) as BufferSource,
-    hexToBuffer(globalThis.sessionStorage.getItem("decrypted_private_key")!) as BufferSource
-  );
-
-  const fileStream = streamSaver.createWriteStream(file_name);
-  const writer = fileStream.getWriter();
-
-  for (let chunkInfo of manifest_json.chunkInfos) {
-
-    const chunk_data = await fetchChunk(chunkInfo.id);
-
-    const chunk_key = await deriveChunkKey(
-      file_key as BufferSource,
-      chunkInfo.index,
-      manifest_json.file_id
-    );
-
-    const chunk_nonce = chunk_data.slice(0, 12);
-    const chunk_ciphertext = chunk_data.slice(12);
-
-    const decrypted_chunk = await decrypt(
-      chunk_ciphertext,
-      chunk_key,
-      chunk_nonce
-    );
-
-    await writer.write(decrypted_chunk);
-
-    //console.log(`Downloaded and decrypted chunk ${chunkInfo.index}, 
-    // size: ${decrypted_chunk.byteLength} bytes: `, decrypted_chunk);
-    
+  const data = await res.json();
+  if (!data.success) {
+    throw new Error("Failed to get file key: " + data.message);
   }
-  await writer.close();
-  console.log("[Download] Download complete successfully.");
-
+  
+  return data.data.encrypted_master_key;
 }
 
 export const Home = () => {
 
+  const usernameShareRef = useRef<HTMLInputElement>(null);
+  
+  const [activeFile, setActiveFile] = useState<UserFile>({ id: "", name: "" });
   const [files, setFiles] = useState<UserFile[]>([]);
   const [authError, setAuthError] = useState<boolean>(false);
-
-  useEffect(() => {
-
-    refreshFiles()
-  }, []);
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [shareButtonPressed, setShareButtonPressed] = useState<boolean>(false);
+  const [shareMultiple, setShareMultiple] = useState<boolean>(false);
 
   const navigate = useNavigate();
 
   const refreshFiles = useCallback(async () => {
-
-    const dir_key = sessionStorage.getItem("decrypted_directory_key");
-  
-    if (!dir_key) {
-      await fetch(`${config.BACKENDURL}/auth/logout`, {
-        method: "POST",
-        credentials: "include"
-      });
-      navigate("/login");
-      setAuthError(true);
-      return;
-    }
 
     try {
       const data: GetAllUserFilesResponse | undefined = await getFiles();
@@ -143,17 +91,24 @@ export const Home = () => {
 
       const rawFiles = data.data.files;
 
-      const directoryKeyBuffer = hexToBuffer(dir_key) as BufferSource;
-
       const decryptedFilesPromise = rawFiles.map(async (file) => {
         try {
+          const encrypted_file_master_key = await getFileKey(file.id);
+
+          const file_master_key = bufferToHex(await decryptRSA(
+            hexToBuffer(encrypted_file_master_key) as BufferSource,
+            hexToBuffer(globalThis.sessionStorage.getItem("decrypted_private_key")!) as BufferSource
+          ) as BufferSource);
+
+          const masteryKeyBuffer = hexToBuffer(file_master_key) as BufferSource;
+
           const enc_name_data = hexToBuffer(file.name);
           const nonce = enc_name_data.slice(0, 12);
           const ciphertext = enc_name_data.slice(12);
 
           const decrypted_name_buffer = await decrypt(
             ciphertext,
-            directoryKeyBuffer,
+            masteryKeyBuffer,
             nonce
           );
           
@@ -173,6 +128,110 @@ export const Home = () => {
     }
   }, []);
 
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const verifyAndLoad = async () => {
+      
+      const isAuthenticated = await getAuth();
+
+      if (!isMounted) return;
+
+      if (!isAuthenticated) {
+        setAuthError(true);
+        navigate("/login");
+      } else {
+        refreshFiles();
+      }
+    };
+
+    verifyAndLoad();
+
+    return () => { isMounted = false; };
+  }, [navigate]); // navigate is a dependency
+
+  // Optional: Prevent the UI from flashing before redirect
+  if (authError) return null;
+
+
+  
+
+  const handleSelect = (id: string) => {
+    const newSelection = new Set(selectedFiles);
+    if (newSelection.has(id)) {
+      newSelection.delete(id);
+    } else {
+      newSelection.add(id);
+    }
+    setSelectedFiles(newSelection);
+  };
+
+  const handleClearSelection = () => {
+    setSelectedFiles(new Set());
+  };
+
+  const handleDownload = async (file: UserFile) => {
+    await downloadFile(file.id, file.name);
+  };
+
+  const handleDelete = async (file: UserFile) => {
+    if (globalThis.confirm(`Are you sure you want to delete ${file.name}?`)) {
+        await verifyOwnership(file.id);
+        await deleteFile(file.id);
+
+        refreshFiles();
+        handleClearSelection();
+    }
+  };
+
+  const handleBulkDownload = async () => {
+    const filesToDownload = files.filter(f => selectedFiles.has(f.id));
+    for (const file of filesToDownload) {
+      await verifyOwnership(file.id);
+
+      await downloadFile(file.id, file.name);
+    }
+    handleClearSelection();
+  };
+
+  const handleBulkDelete = async () => {
+    if (globalThis.confirm(`Are you sure you want to delete ${selectedFiles.size} files?`)) {
+      const filesToDelete = files.filter(f => selectedFiles.has(f.id));
+      console.log("Deleting files:", filesToDelete);
+      for (const file of filesToDelete) {
+        await deleteFile(file.id);
+      }
+      refreshFiles();
+      handleClearSelection();
+    }
+  };
+
+  const handleShare = async () => {
+
+    await verifyOwnership(activeFile.id);
+
+    const username = usernameShareRef.current?.value;
+    if (!username) return alert("Please enter a username");
+
+    console.log(`Sharing file ${activeFile.id} to ${username}`);
+    await shareFile(activeFile.id, username);
+    
+  };
+
+  const handleBulkShare = async () => {
+    const username = usernameShareRef.current?.value;
+    if (!username) return alert("Please enter a username");
+
+    console.log(`Sharing ${selectedFiles.size} files to ${username}`);
+    for (const fileId of selectedFiles) {
+      await shareFile(fileId, username);
+    }
+    
+    handleClearSelection();
+  };
+
+
   return (
     <div style={{ position: 'relative', minHeight: '100vh', padding: '20px' }}>
       <div style={{ position: 'absolute', top: '20px', right: '20px' }}>
@@ -185,14 +244,42 @@ export const Home = () => {
       files?.length === 0 ? (
         <p>No files found.</p>
       ) : (
-        <ul>
-          {
-          files.map((file) => (
-            <li key={file.id}>
-              <Button func={async () => await downloadFile(file.id, file.name)}>{file.name}</Button>
-            </li>
-          ))}
-        </ul>
+        <div>
+          <FileActionsBar 
+            selectedCount={selectedFiles.size}
+            onDownload={handleBulkDownload}
+            onDelete={handleBulkDelete}
+            onShare={() => { setShareMultiple(true); setShareButtonPressed(true); }}
+            onClearSelection={handleClearSelection}
+          />
+          <div className="file-list">
+            {files.map((file) => (
+              <FileRow 
+                key={file.id} 
+                file={file} 
+                isSelected={selectedFiles.has(file.id)} 
+                onSelect={handleSelect}
+                onDownload={handleDownload}
+                onShare={() => { setActiveFile(file); setShareMultiple(false); setShareButtonPressed(true); }}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+
+          <SharePopup triggered={shareButtonPressed} multiple={shareMultiple} onClose={() => setShareButtonPressed(false)}>
+                <h3>
+                  Share files
+                </h3>
+                <form onSubmit={(e) => {e.preventDefault();}}>
+                  <label>
+                    Recipient Username:
+                    <input type="text" name="username" ref={usernameShareRef} />
+                  </label>
+                  <button type="submit" onClick={shareMultiple ? handleBulkShare : handleShare}>Share</button>
+                </form>
+          </SharePopup>
+
+        </div>
       )}
       <UploadFileButton onUploadSuccess={refreshFiles} />
     </div>

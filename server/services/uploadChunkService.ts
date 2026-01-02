@@ -1,17 +1,11 @@
-import { FILESYSTEM_ROOT } from "../config/config";
-import fs from 'fs/promises';
+import fs from 'node:fs/promises';
+import { getStoragePath } from "../utils/getStoragePath";
 
-async function uploadChunkService(bytes: Uint8Array<ArrayBufferLike>, chunk_id: string): Promise<number> {
-    
-    console.log("bytes length: ", bytes.byteLength);
+async function uploadChunkService(bytes: Uint8Array<ArrayBufferLike>, file_id: string, chunk_id: string): Promise<number> {
 
-    const uuid_0_2 = `${chunk_id.slice(0,2)}`;
+    const storagePath = getStoragePath(file_id);
 
-    await fs.mkdir(`${FILESYSTEM_ROOT}/${uuid_0_2}`, { recursive: true });
-
-    await fs.writeFile(`${FILESYSTEM_ROOT}/${uuid_0_2}/${chunk_id}`, Buffer.from(bytes));
-
-    console.log("Chunk saved successfully!");
+    await fs.writeFile(`${storagePath}/${chunk_id}`, Buffer.from(bytes));
         
     return bytes.byteLength;
 }

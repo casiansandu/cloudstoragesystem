@@ -1,0 +1,26 @@
+.file-actions-bar {
+  position: sticky;
+  top: 0;
+  border-bottom: 1px solid #ccc;
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  z-index: 100;
+}
+
+.selection-info {
+  display: flex;
+  align-items: center;
+}
+
+.clear-selection-btn {
+  margin-left: 10px;
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+.action-buttons {
+  display: flex;
+  align-items: center;
+}

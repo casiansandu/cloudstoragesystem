@@ -8,7 +8,7 @@ async function getAllUserFilesService(owner_id: string): Promise<Array<{id: stri
     }
 
     const files = await db.manyOrNone<{id: string, enc_name: string}>(
-        'SELECT id, enc_name FROM files WHERE owner_id = $1',
+        'SELECT f.id, f.enc_name FROM files f join user_access ua ON f.id = ua.file_id WHERE ua.user_id = $1',
         [owner_id]
     );
 

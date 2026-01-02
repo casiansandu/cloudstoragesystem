@@ -12,6 +12,7 @@ export type FileUploadResponse = {
   message: string;
   data?: {
     file_id?: string;
+    access_id?: string;
     stored_bytes?: number;
   };
   success: boolean;
@@ -23,6 +24,7 @@ export type ManifestData = {
   totalChunks: number;
   uploadedAt: string;
   encryptedFileKey: string; 
+  file_size: number;
   chunkInfos: {
     index: number;
     id: string;

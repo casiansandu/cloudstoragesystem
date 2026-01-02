@@ -1,7 +1,7 @@
 import express, { CookieOptions, Router } from 'express';
 import { noAuthMiddleware } from '../middleware/noAuthMiddleware';
 import { srpLoginStart, srpLoginVerify } from '../controllers/srpLoginController';
-import { checkLoginStatus } from '../controllers/checkLoggedIn';
+import { checkLoginStatus } from '../controllers/checkLoggedInController';
 import srpRegisterController from '../controllers/srpRegisterController';
 
 const router: Router = express.Router();
@@ -15,10 +15,9 @@ router.get('/status', checkLoginStatus)
 
 router.post('/logout', (req, res) => {
     
-    // The options here MUST match the options used when creating the cookie.
     const cookieOptions: CookieOptions= {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production', // true for https
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
         path: '/'
     };

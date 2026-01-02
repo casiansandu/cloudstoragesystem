@@ -1,24 +1,26 @@
 
 import { Request, Response } from "express";
 import { ApiErrorResponse, ApiSuccessResponse } from "../types";
-import { FILESYSTEM_ROOT } from "../config/config";
 import * as fs from 'node:fs/promises';
-import { createReadStream } from 'fs'; // For the stream specifically
-import path from 'path';
+import { createReadStream } from 'node:fs';
+import path from 'node:path';
+import { getStoragePath } from "../utils/getStoragePath";
 
 
 export default async function getChunkController(
     req: Request, 
     res: Response<ApiSuccessResponse<any> | ApiErrorResponse>
 ) {
-    const chunkId = req.params.chunkId;
+    const chunkId = req.params.chunk_id;
     if (!chunkId) {
         return res.status(400).json({ message: 'Missing chunk ID', success: false });
     }
 
     try {
-        const chunkPath = path.join(FILESYSTEM_ROOT, chunkId.slice(0, 2), chunkId);
-        //console.log("Chunk path:", chunkPath);
+        const file_id = req.params.file_id;
+
+        const chunkPath = path.join(getStoragePath(file_id), chunkId);
+        
         await fs.access(chunkPath);
 
         res.setHeader('Content-Type', 'application/octet-stream');
@@ -32,10 +34,8 @@ export default async function getChunkController(
 
         stream.pipe(res);
 
-        
-
     } catch (error) {
         console.error("File not found or access denied:", error);
-        res.status(404).json({ message: 'Chunk not found', success: false });
+        return res.status(404).json({ message: 'Chunk not found', success: false });
   }
 }

@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { JWT_SECRET } from '../config/config';
 import { JwtPayload } from '../types';
 
-export async function verifyJwtToken(token: string): Promise<Pick<JwtPayload, 'id' | 'username'>> {
+export async function verifyJwt(token: string): Promise<Pick<JwtPayload, 'id' | 'username'>> {
 
   let payload: JwtPayload;
   try {
@@ -18,4 +18,4 @@ export async function verifyJwtToken(token: string): Promise<Pick<JwtPayload, 'i
   return { id: payload.id, username: payload.username };
 }
 
-export default verifyJwtToken;
+export default verifyJwt;

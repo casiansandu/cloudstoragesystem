@@ -1,0 +1,22 @@
+.file-row {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  border-bottom: 1px solid #ccc;
+}
+
+.file-row:hover {
+  background-color: #f0f0f0;
+}
+
+.file-row.selected {
+  background-color: #e0e0e0;
+}
+
+.file-checkbox {
+  margin-right: 10px;
+}
+
+.file-name {
+  flex-grow: 1;
+}

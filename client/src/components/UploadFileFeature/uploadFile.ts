@@ -1,6 +1,7 @@
 import { sha256 } from "js-sha256";
 import {
   bufferToHex,
+  decryptRSA,
   deriveChunkKey,
   encrypt,
   encryptRSA,
@@ -13,42 +14,57 @@ import { concatUint8, gen_uuidv5 } from "../../utils/funcs";
 import config from "../../../config/config";
 import { v4 as uuidv4 } from "uuid";
 
-async function startUpload(enc_file_name_data: EncryptedResult, selectedFile: File, file_id: string) : Promise<string> {
-    await fetch(`${config.BACKENDURL}/files/upload/start`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            name: bufferToHex(concatUint8(
-                new Uint8Array(enc_file_name_data.nonce),
-                new Uint8Array(enc_file_name_data.ciphertext)
-            ) as BufferSource),
-            path: "/",
-            file_size: selectedFile.size,
-        }),
-        credentials: "include"
-    }).then(res => res.json()).then((data: FileUploadResponse) => {
+async function startUpload(enc_file_name_data: EncryptedResult, selectedFile: File, file_id: string, enc_file_key: string, public_key: string) : Promise<string> {
 
-        if (!data.success) {
-            throw new Error("Failed to start upload: " + data.message);
-        }
+  const manifest_key = await generateMasterKey();
 
-        if (!data.data?.file_id) {
-            throw new Error("Received bad data: " + data.message);
-        }
+  const wrapped_manifest_key = (await encryptRSA(
+      manifest_key,
+      hexToBuffer(public_key) as BufferSource
+  )) as BufferSource;
 
-        file_id = data.data.file_id;
-        console.log("Upload started: for file ", file_id);
-        
-    });
-    return file_id;
+
+  await fetch(`${config.BACKENDURL}/files/upload/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+          name: bufferToHex(concatUint8(
+              new Uint8Array(enc_file_name_data.nonce),
+              new Uint8Array(enc_file_name_data.ciphertext)
+          ) as BufferSource),
+          path: "/",
+          file_size: selectedFile.size,
+          encrypted_file_key: enc_file_key,
+          encrypted_manifest_key: bufferToHex(wrapped_manifest_key)
+      }),
+      credentials: "include"
+  }).then(res => res.json()).then((data: FileUploadResponse) => {
+
+      file_id = data.data?.file_id?? "";
+      const access_id = data.data?.access_id?? "";
+
+      if (!data.success) {
+          throw new Error("Failed to start upload: " + data.message);
+      }
+
+      if (!data.data?.file_id) {
+          throw new Error("No file ID returned from server" + data.message);
+      }
+
+      if (!data.data?.access_id) {
+          throw new Error("No access ID returned from server" + data.message);
+      }
+
+      
+  });
+  return file_id;
 }
 
-async function uploadChunk(bytes: ArrayBuffer, chunkId: string): Promise<number> {
-  const res = await fetch(`${config.BACKENDURL}/files/upload/chunk`, {
+async function uploadChunk(bytes: ArrayBuffer, file_id: string, chunk_id: string): Promise<number> {
+  const res = await fetch(`${config.BACKENDURL}/files/upload/${file_id}/${chunk_id}`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/octet-stream',
-      'X-Chunk-Id': chunkId,
+      'Content-Type': 'application/octet-stream'
     },
     credentials: 'include',
     body: bytes
@@ -57,47 +73,65 @@ async function uploadChunk(bytes: ArrayBuffer, chunkId: string): Promise<number>
   const data: FileUploadResponse = await res.json();
 
   if (!data.data?.stored_bytes) {
-    throw new Error("No data returned from server for chunk " + chunkId);
+    throw new Error("No data returned from server for chunk " + chunk_id);
   }
 
   if (!data.success) {
-    throw new Error(`Chunk upload failed for chunk ${chunkId}: ${data.message}`);
+    throw new Error(`Chunk upload failed for chunk ${chunk_id}: ${data.message}`);
   }
 
-  console.log(`data received for chunk ${chunkId}: `, data.data);
+  //console.log(`data received for chunk ${chunkId}: `, data.data);
 
   return data.data.stored_bytes; 
 }
 
+export async function getManifestKey(file_id: string): Promise<BufferSource> {
+  const res = await fetch(`${config.BACKENDURL}/files/${file_id}/manifest_key`, {
+    method: "GET",
+    credentials: "include"
+  });
+  const data = await res.json();
+
+  if (!data.success) {
+    throw new Error("Failed to get manifest key: " + data.message);
+  }
+  return hexToBuffer(data.data.encrypted_manifest_key) as BufferSource;
+}
+
 async function uploadManifest(file_id: string, manifest: ManifestData, public_key: string): Promise<string> {
-        const manifest_name = sha256(file_id + "manifest");
+  const manifest_name = sha256(file_id + "manifest");
 
-        const manifest_key = await generateMasterKey();
-        const enc_manifest = await encrypt(JSON.stringify(manifest), manifest_key);
+  const encrypted_manifest_key = await getManifestKey(file_id);
+  const manifest_key = await decryptRSA(
+      encrypted_manifest_key,
+      hexToBuffer(globalThis.sessionStorage.getItem("decrypted_private_key")!) as BufferSource
+  ) as BufferSource;
 
-        const wrapped_manifest_key = (await encryptRSA(
-            manifest_key,
-            hexToBuffer(public_key) as BufferSource
-        )) as BufferSource;
+  const enc_manifest = await encrypt(JSON.stringify(manifest), manifest_key);
 
-        const enc_manifest_nonce_and_ciphertext = concatUint8(
-            enc_manifest.nonce,
-            enc_manifest.ciphertext
-        );
+  const wrapped_manifest_key = (await encryptRSA(
+      manifest_key,
+      hexToBuffer(public_key) as BufferSource
+  )) as BufferSource;
 
-        const enc_manifest_blob = concatUint8(
-            wrapped_manifest_key as Uint8Array, // 256 bytes
-            enc_manifest_nonce_and_ciphertext // 12 + manifest bytes
-        );
+  const enc_manifest_nonce_and_ciphertext = concatUint8(
+      enc_manifest.nonce,
+      enc_manifest.ciphertext
+  );
 
-        const enc_manifest_buffer = enc_manifest_blob.buffer.slice(
-            enc_manifest_blob.byteOffset,
-            enc_manifest_blob.byteOffset + enc_manifest_blob.byteLength
-        ) as ArrayBuffer;
-        const manifest_uuid = gen_uuidv5(manifest_name);
+  // const enc_manifest_blob = concatUint8(
+  //     wrapped_manifest_key as Uint8Array, // 256 bytes
+  //     enc_manifest_nonce_and_ciphertext // 12 + manifest bytes
+  // );
 
-        await uploadChunk(enc_manifest_buffer, manifest_uuid);
-        return manifest_uuid;
+  const enc_manifest_buffer = enc_manifest_nonce_and_ciphertext.buffer.slice(
+      enc_manifest_nonce_and_ciphertext.byteOffset,
+      enc_manifest_nonce_and_ciphertext.byteOffset + enc_manifest_nonce_and_ciphertext.byteLength
+  ) as ArrayBuffer;
+  const manifest_uuid = gen_uuidv5(manifest_name);
+
+  await uploadChunk(enc_manifest_buffer, file_id, manifest_uuid);
+  return manifest_uuid;
 }
 
 async function handleChunkEncryption(
@@ -131,13 +165,13 @@ async function handleChunkEncryption(
       chunk_data_uint8.byteOffset + chunk_data_uint8.byteLength
     ) as ArrayBuffer;
 
-    const bytes_stored = await uploadChunk(chunk_data_buffer, chunk_id);
+    await uploadChunk(chunk_data_buffer, file_id, chunk_id);
 
-    console.log(
-      `Uploaded chunk ${
-        chunk_index + 1
-      }/${chunk_number}, bytes stored: ${bytes_stored}`
-    );
+    // console.log(
+    //   `Uploaded chunk ${
+    //     chunk_index + 1
+    //   }/${chunk_number}, bytes stored: ${bytes_stored}`
+    // );
 
     manifest.chunkInfos.push({
       index: chunk_index,
@@ -159,16 +193,10 @@ export default async function uploadFile(selectedFile: File) {
   if (!public_key) {
     throw new Error("No public key found in session storage");
   }
-
-  const enc_file_name_data = await encrypt(
-    selectedFile.name,
-    hexToBuffer(directory_key) as BufferSource
-  );
-
-  file_id = await startUpload(enc_file_name_data, selectedFile, file_id);
+  const file_size_bytes = selectedFile.size;
 
   const chunk_size = 5 * 1024 * 1024; // 5 MB
-  const chunk_number = Math.ceil(selectedFile.size / chunk_size);
+  const chunk_number = Math.ceil(file_size_bytes / chunk_size);
 
   const file_key = await generateMasterKey();
   const enc_file_key = bufferToHex(
@@ -178,11 +206,19 @@ export default async function uploadFile(selectedFile: File) {
     )) as BufferSource
   );
 
+  const enc_file_name_data = await encrypt(
+    selectedFile.name,
+    file_key
+  );
+
+  file_id = await startUpload(enc_file_name_data, selectedFile, file_id, enc_file_key, public_key);
+
   const manifest: ManifestData = {
     file_id: file_id,
     totalChunks: chunk_number,
     uploadedAt: new Date().toISOString(),
     encryptedFileKey: enc_file_key,
+    file_size: file_size_bytes,
     chunkInfos: [],
   };
 
@@ -205,6 +241,6 @@ export default async function uploadFile(selectedFile: File) {
 
   const manifest_uuid = await uploadManifest(file_id, manifest, public_key);
 
-  console.log("manifest uploaded: ", manifest_uuid)
+  console.log("manifest uploaded: ", manifest)
     
 }

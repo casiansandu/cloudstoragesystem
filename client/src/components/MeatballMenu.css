@@ -1,0 +1,36 @@
+.meatball-menu-container {
+  position: relative;
+  display: inline-block;
+}
+
+.meatball-button {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: black;
+  padding: 0 5px;
+}
+
+.meatball-dropdown {
+  position: absolute;
+  right: 0;
+  background-color: white;
+  border: 1px solid #ccc;
+  min-width: 100px;
+  z-index: 1;
+}
+
+.meatball-item {
+  display: block;
+  width: 100%;
+  padding: 5px 10px;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.meatball-item:hover {
+  background-color: #eee;
+}

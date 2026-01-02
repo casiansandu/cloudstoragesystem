@@ -1,16 +1,15 @@
 
 import {Request, Response } from 'express';
 import getUserKeysService from "../services/getUserKeysService";
-import verifyJwtToken from "../services/verifyJwt";
 import { ApiErrorResponse, ApiSuccessResponse, AuthenticatedRequest } from "../types";
+import { GetKeysResult } from '../types';
 
-export async function getUserKeysController(req: AuthenticatedRequest, res: Response<ApiSuccessResponse<any> | ApiErrorResponse>): Promise<void> {
-    
+export async function getUserKeysController(req: AuthenticatedRequest, res: Response<ApiSuccessResponse<GetKeysResult> | ApiErrorResponse>): Promise<void> {
+                
 
     try {
         const { id, username } =  req.user!;
         const keys = await getUserKeysService(id);    
-        //console.log(`User ${username} (ID: ${id}) retrieved their encryption keys: { salt: ${keys.encryption_salt}, private_key: ${keys.encrypted_private_key}, public_key: ${keys.encryption_public_key}, nonce: ${keys.encryption_nonce} }`);
         
         res.status(200).json({ 
             message: 'Keys retrieved successfully',

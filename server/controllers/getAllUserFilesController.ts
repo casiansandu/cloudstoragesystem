@@ -17,7 +17,7 @@ export async function getAllUserFilesController(
     try {
         const { id } = await verifyJwtToken(token);
         const files = await getAllUserFilesService(id);
-        console.log(files);
+        
         res.status(200).json({ message: 'Files retrieved successfully', data: { files }, success: true });
         return;
     } catch (error) {
