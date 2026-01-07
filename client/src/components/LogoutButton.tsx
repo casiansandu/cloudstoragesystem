@@ -2,6 +2,12 @@ import { useNavigate } from "react-router-dom";
 
 import config from "../../config/config";
 
+export const logout = async () => {
+  await fetch(`${config.BACKENDURL}/auth/logout`, {
+    method: "POST",
+    credentials: "include"
+  });
+};
 
 export const LogoutButton = () => {
 
@@ -12,10 +18,7 @@ const navigate = useNavigate();
     globalThis.localStorage.clear();
 
     try {
-      await fetch(`${config.BACKENDURL}/auth/logout`, {
-        method: "POST",
-        credentials: "include"
-      });
+      await logout();
     } catch (err) {
       console.error("Logout failed on server, but client is cleared", err);
     }

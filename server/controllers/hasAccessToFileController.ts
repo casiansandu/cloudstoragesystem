@@ -30,7 +30,7 @@ async function hasAccessToFileController(
             });
             return;
         }
-        console.log("Access ID:", access_id);
+        //console.log("Access ID:", access_id);
         res.status(200).json({ 
             message: 'File access check completed successfully',
             data: {

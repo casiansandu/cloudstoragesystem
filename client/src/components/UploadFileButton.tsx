@@ -1,11 +1,13 @@
 import { useState, type ChangeEvent } from 'react';
-import uploadFile from './UploadFileFeature/uploadFile';
+import { useGlobalWorker } from '../context/WorkerContext';
 
 interface UploadFileButtonProps {
   onUploadSuccess?: () => void;
 }
 
 const EncryptedUpload = ({ onUploadSuccess } : UploadFileButtonProps) => {
+
+    const worker = useGlobalWorker();
     
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [status, setStatus] = useState<string>("");
@@ -27,7 +29,10 @@ const EncryptedUpload = ({ onUploadSuccess } : UploadFileButtonProps) => {
             
             setStatus("Uploading...");
 
-            await uploadFile(selectedFile);
+            const result = await worker.uploadFile(selectedFile);
+            if (!result.success) {
+                throw new Error("Upload failed in worker");
+            }
 
             setStatus("Upload successful!");
 

@@ -1,8 +1,8 @@
 
 
 const getCrypto = (): Crypto => {
-  if (typeof window !== 'undefined' && window.crypto) {
-    return window.crypto;
+  if (typeof globalThis !== 'undefined' && crypto) {
+    return crypto;
   }
   if (typeof globalThis !== 'undefined' && (globalThis as any).crypto) {
     return (globalThis as any).crypto;
@@ -105,7 +105,7 @@ export const deriveKEK = async (password: string, salt: BufferSource): Promise<C
   );
 };
 
-/** 2. ENCRYPT (RSA-OAEP)
+/** ENCRYPT (RSA-OAEP)
  * Encrypts data using RSA-OAEP with the provided public key.
  * @param data - The data to encrypt.
  * @param publicKey - The RSA public key.
@@ -113,11 +113,14 @@ export const deriveKEK = async (password: string, salt: BufferSource): Promise<C
  */
 export const encryptRSA = async (
   data: BufferSource,
-  publicKey: BufferSource
+  publicKey: BufferSource | CryptoKey
 ): Promise<Uint8Array> => {
-  const cryptoKey = await subtle.importKey(
+  
+  let cryptoKey: CryptoKey;
+  if (!(publicKey as CryptoKey).algorithm) {
+    cryptoKey = await subtle.importKey(
     "spki",
-    publicKey,
+    publicKey as BufferSource,
     {
       name: "RSA-OAEP",
       hash: { name: "SHA-256" }
@@ -125,6 +128,9 @@ export const encryptRSA = async (
     false,
     ["encrypt"]
   );
+  } else {
+    cryptoKey = publicKey as CryptoKey;
+  }
 
   const encryptedBuffer = await subtle.encrypt(
     {
@@ -136,7 +142,7 @@ export const encryptRSA = async (
   return new Uint8Array(encryptedBuffer);
 }
 
-/** 5. DECRYPT (RSA-OAEP)
+/** DECRYPT (RSA-OAEP)
  * Decrypts data using RSA-OAEP with the provided private key.
  * @param ciphertext - The encrypted data to decrypt.
  * @param privateKey - The RSA private key.
@@ -144,11 +150,14 @@ export const encryptRSA = async (
  */
 export const decryptRSA = async (
   ciphertext: BufferSource,
-  privateKey: BufferSource
+  privateKey: BufferSource | CryptoKey
 ): Promise<Uint8Array> => {
-  const cryptoKey = await subtle.importKey(
+
+  let cryptoKey: CryptoKey;
+  if (!(privateKey as CryptoKey).algorithm) {
+    cryptoKey = await subtle.importKey(
     "pkcs8",
-    privateKey,
+    privateKey as BufferSource,
     {
       name: "RSA-OAEP",
       hash: { name: "SHA-256" }
@@ -156,6 +165,9 @@ export const decryptRSA = async (
     false,
     ["decrypt"]
   );
+  } else {
+    cryptoKey = privateKey as CryptoKey;
+  }
 
   const decryptedBuffer = await subtle.decrypt(
     {
@@ -219,7 +231,7 @@ export async function deriveChunkKey(
   chunkIndex: number, 
   fileId: string
 ): Promise<CryptoKey> {
-  const subtle = window.crypto.subtle;
+  const subtle = crypto.subtle;
   let hkdfKey: CryptoKey;
 
   if (fileMasterKey instanceof CryptoKey) {

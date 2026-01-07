@@ -8,10 +8,12 @@ import type {
   SrpLoginVerifyResponse,
   GetUserKeysResponse
 } from "../utils/apiTypes";
-import { bufferToHex, deriveKEK, hexToBuffer } from "../../utils/crypto";
-import { decrypt } from "../../utils/crypto";
+import { bufferToHex, deriveKEK, hexToBuffer, decrypt } from "../../utils/crypto";
+import { useGlobalWorker, WorkerContext } from "../context/WorkerContext";
+import {logout} from "../components/LogoutButton";
 
 export const SrpLogin = () => {
+  const worker = useGlobalWorker();
 
   const navigate = useNavigate();
 
@@ -40,96 +42,92 @@ export const SrpLogin = () => {
   const performSrpLogin = async () => {
     setIsLoading(true);
     try {
-      const { public: client_public, secret: client_secret } = srp.generateEphemeral();
+      // const { public: client_public, secret: client_secret } = srp.generateEphemeral();
 
-      const startRes = await fetch(`${config.BACKENDURL}/auth/login/start`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ username, client_public }),
-      });
+      // const startRes = await fetch(`${config.BACKENDURL}/auth/login/start`, {
+      //   method: "POST",
+      //   headers: { "Content-Type": "application/json" },
+      //   credentials: "include",
+      //   body: JSON.stringify({ username, client_public }),
+      // });
 
-      const startData: SrpLoginStartResponse = await startRes.json();
-      if (!startData.success) throw new Error(startData.message);
+      // const startData: SrpLoginStartResponse = await startRes.json();
+      // if (!startData.success) throw new Error(startData.message);
 
-      //console.log("Received start data:", startData);
+      // const loginSessionId = startData.data.loginSessionId;
 
-      const loginSessionId = startData.data.loginSessionId;
-
-      const privateKey = srp.derivePrivateKey(startData.data.salt, username, password);
+      // const privateKey = srp.derivePrivateKey(startData.data.salt, username, password);
       
-      const clientSession = srp.deriveSession(
-        client_secret,
-        startData.data.server_public,
-        startData.data.salt,
-        username,
-        privateKey
-      );
+      // const clientSession = srp.deriveSession(
+      //   client_secret,
+      //   startData.data.server_public,
+      //   startData.data.salt,
+      //   username,
+      //   privateKey
+      // );
 
-      const verifyRes = await fetch(`${config.BACKENDURL}/auth/login/verify`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          client_session_proof: clientSession.proof, loginSessionId
-        }),
-      });
+      // const verifyRes = await fetch(`${config.BACKENDURL}/auth/login/verify`, {
+      //   method: "POST",
+      //   headers: { "Content-Type": "application/json" },
+      //   credentials: "include",
+      //   body: JSON.stringify({
+      //     client_session_proof: clientSession.proof, loginSessionId
+      //   }),
+      // });
 
-      const verifyData: SrpLoginVerifyResponse = await verifyRes.json();
-      if (!verifyData.success) throw new Error(verifyData.message);
+      // const verifyData: SrpLoginVerifyResponse = await verifyRes.json();
+      // if (!verifyData.success) throw new Error(verifyData.message);
 
-      srp.verifySession(
-        client_public,
-        clientSession,
-        verifyData.data.server_session_proof
-      );
+      // srp.verifySession(
+      //   client_public,
+      //   clientSession,
+      //   verifyData.data.server_session_proof
+      // );
 
-      await fetch(`${config.BACKENDURL}/files/keys`, {
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-      }).then(res => res.json() as Promise<GetUserKeysResponse>).then(async data => {
-          if (!data.success) {
-            throw new Error(data.message);
-          }
-          console.log("Fetched file encryption keys:", data);
+      // await fetch(`${config.BACKENDURL}/users/keys`, {
+      //     method: "GET",
+      //     headers: { "Content-Type": "application/json" },
+      //     credentials: "include",
+      // }).then(res => res.json() as Promise<GetUserKeysResponse>).then(async data => {
 
-          try {
-            const kek = await deriveKEK(
-              password,
-              Uint8Array.from(hexToBuffer(data.data.encryption_salt))
-            );
+      //     if (!data.success) {
+      //       throw new Error(data.message);
+      //     }
+      //     console.log("Fetched file encryption keys:", data);
+      //     try {
+      //       const kek = await deriveKEK(
+      //         password,
+      //         Uint8Array.from(hexToBuffer(data.data.encryption_salt))
+      //       );
 
+      //       const private_key_data = new Uint8Array(hexToBuffer(data.data.encrypted_private_key));
+      //       const private_key_nonce = private_key_data.slice(0, 12);
+      //       const private_key_ciphertext = private_key_data.slice(12);
 
-            const private_key_data = new Uint8Array(hexToBuffer(data.data.encrypted_private_key));
-            const private_key_nonce = private_key_data.slice(0, 12);
-            const private_key_ciphertext = private_key_data.slice(12);
+      //       const decryptedPrivateKey = await decrypt(
+      //         private_key_ciphertext,
+      //         kek,
+      //         private_key_nonce
+      //       );
 
-            const decryptedPrivateKey = await decrypt(
-              private_key_ciphertext,
-              kek,
-              private_key_nonce
-            );
+      //       globalThis.sessionStorage.setItem("decrypted_private_key", bufferToHex(new Uint8Array(decryptedPrivateKey)));
+      //       globalThis.sessionStorage.setItem("encryption_public_key", data.data.encryption_public_key);
+      //     } catch (err) {
+      //       console.error("Error decrypting keys:", err);
+      //       return;
+      //     }
+          
+      //   });
 
-            const dir_key_data = Uint8Array.from(hexToBuffer(data.data.encrypted_directory_key));
-            const dir_key_nonce = dir_key_data.slice(0, 12);
-            const dir_key_ciphertext = dir_key_data.slice(12);
-
-            const decrypted_directory_key = await decrypt(
-              dir_key_ciphertext,
-              kek,
-              dir_key_nonce
-            );
-
-            globalThis.sessionStorage.setItem("decrypted_private_key", bufferToHex(new Uint8Array(decryptedPrivateKey)));
-            globalThis.sessionStorage.setItem("encryption_public_key", data.data.encryption_public_key);
-            globalThis.sessionStorage.setItem("decrypted_directory_key", bufferToHex(new Uint8Array(decrypted_directory_key)));
-          } catch (err) {
-            console.error("Error decrypting keys:", err);
-            return;
-          }
-        });
-
+      const loginResult = await worker.fullLogin(username, password);
+      if (!loginResult.success) {
+        throw new Error("Login failed in worker");
+      }
+      const fileKeysResult = await worker.getFileKeys();
+      if (!fileKeysResult.success) {
+        throw new Error("Fetching file keys failed in worker");
+      }
+      
       alert("Login successful");
       navigate("/home");
 

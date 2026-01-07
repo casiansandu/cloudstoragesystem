@@ -17,7 +17,6 @@ export async function getUserKeysController(req: AuthenticatedRequest, res: Resp
                 encryption_salt: keys.encryption_salt,
                 encrypted_private_key: keys.encrypted_private_key,
                 encryption_public_key: keys.encryption_public_key,
-                encrypted_directory_key: keys.encrypted_directory_key
             }, 
             success: true });
         return;

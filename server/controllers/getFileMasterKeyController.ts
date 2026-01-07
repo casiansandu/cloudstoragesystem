@@ -31,7 +31,7 @@ async function getFileMasterKeyController(req: AuthenticatedRequest, res: Respon
         res.status(200).json({ 
             message: 'File master key retrieved successfully',
             data: {
-                encrypted_master_key: masterKey,
+                encrypted_file_key: masterKey,
             }, 
             success: true });
         return;

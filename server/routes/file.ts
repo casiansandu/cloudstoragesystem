@@ -2,7 +2,6 @@ import express, { Router } from 'express';
 
 import { authMiddleware } from '../middleware/authMiddleware';
 import { getAllUserFilesController } from '../controllers/getAllUserFilesController';
-import { getUserKeysController } from '../controllers/getUserKeysController';
 import { startUploadController } from '../controllers/startUploadController';
 import { uploadController } from '../controllers/uploadController';
 import getChunkController from '../controllers/getChunkController';
@@ -18,7 +17,6 @@ const router: Router = express.Router();
 const rawParser = express.raw({ type: 'application/octet-stream', limit: '50mb' });
 
 router.get('/all', authMiddleware, getAllUserFilesController);
-router.get('/keys', authMiddleware, getUserKeysController);
 router.get('/hasaccess/:file_id', authMiddleware, hasAccessToFileController);
 router.get('/isowner/:file_id', authMiddleware, isFileOwnerController);
 router.get(`/download/:file_id/:chunk_id`, authMiddleware, getChunkController);

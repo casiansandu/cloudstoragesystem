@@ -19,11 +19,11 @@ export async function registerController(
     const { 
       username, email, 
       srp_salt, srp_verifier, 
-      encryption_salt, encryption_public_key,  encrypted_private_key, encrypted_directory_key} = req.body;
+      encryption_salt, encryption_public_key,  encrypted_private_key} = req.body;
 
     if (!username || !email || 
       !srp_salt || !srp_verifier || 
-      !encryption_salt || !encryption_public_key || !encrypted_private_key || !encrypted_directory_key) {
+      !encryption_salt || !encryption_public_key || !encrypted_private_key) {
       res.status(400).json({ message: 'All fields are required', success: false });
       return;
     }
@@ -38,7 +38,6 @@ export async function registerController(
       encryption_salt, 
       encrypted_private_key, 
       encryption_public_key,
-      encrypted_directory_key
     });
 
     res.status(201).json({

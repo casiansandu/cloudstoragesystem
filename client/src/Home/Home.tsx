@@ -3,14 +3,14 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import UploadFileButton from "../components/UploadFileButton";
 import type { GetAllUserFilesResponse, UserFile } from "../utils/apiTypes";
 import { LogoutButton } from "../components/LogoutButton";
-import { decrypt, hexToBuffer, bufferToHex, decryptRSA } from "../../utils/crypto";
 import { useNavigate } from "react-router-dom";
-import { downloadFile, verifyOwnership, getManifestData, hasAccess } from "../components/DownloadFileFeature/downloadFile";
+import { verifyOwnership, hasAccess } from "../components/DownloadFileFeature/downloadFile";
 import FileRow from "../components/FileRow";
 import FileActionsBar from "../components/FileActionsBar";
 import deleteFile from "../components/DeleteFileFeature/deleteFile";
-import shareFile from "../components/ShareFileFeature/shareFile";
 import SharePopup from "../components/SharePopup";
+import { useGlobalWorker } from "../context/WorkerContext";
+import streamSaver from "streamSaver";
 
 const getFiles = async () => {
   try {
@@ -47,23 +47,10 @@ const getAuth = async (): Promise<boolean> => {
   }
 }
 
-const getFileKey = async (file_id: string): Promise<string> => {
-  await hasAccess(file_id);
-
-  const res = await fetch(`${config.BACKENDURL}/files/${file_id}/key`, {
-    method: "GET",
-    credentials: "include"
-  });
-
-  const data = await res.json();
-  if (!data.success) {
-    throw new Error("Failed to get file key: " + data.message);
-  }
-  
-  return data.data.encrypted_master_key;
-}
 
 export const Home = () => {
+
+  const worker = useGlobalWorker();
 
   const usernameShareRef = useRef<HTMLInputElement>(null);
   
@@ -91,36 +78,9 @@ export const Home = () => {
 
       const rawFiles = data.data.files;
 
-      const decryptedFilesPromise = rawFiles.map(async (file) => {
-        try {
-          const encrypted_file_master_key = await getFileKey(file.id);
+      const decryptedFiles = await worker.getFileNames(rawFiles);
 
-          const file_master_key = bufferToHex(await decryptRSA(
-            hexToBuffer(encrypted_file_master_key) as BufferSource,
-            hexToBuffer(globalThis.sessionStorage.getItem("decrypted_private_key")!) as BufferSource
-          ) as BufferSource);
-
-          const masteryKeyBuffer = hexToBuffer(file_master_key) as BufferSource;
-
-          const enc_name_data = hexToBuffer(file.name);
-          const nonce = enc_name_data.slice(0, 12);
-          const ciphertext = enc_name_data.slice(12);
-
-          const decrypted_name_buffer = await decrypt(
-            ciphertext,
-            masteryKeyBuffer,
-            nonce
-          );
-          
-          const decryptedName = new TextDecoder().decode(decrypted_name_buffer);
-          return { ...file, id: file.id, name: decryptedName };
-        } catch (error) {
-          console.error("Decryption failed for:", file.name , error);
-          return file; 
-        }
-      });
-
-      const finalFiles = await Promise.all(decryptedFilesPromise);
+      const finalFiles = decryptedFiles.files;
       setFiles(finalFiles);
 
     } catch (error) {
@@ -138,24 +98,21 @@ export const Home = () => {
 
       if (!isMounted) return;
 
-      if (!isAuthenticated) {
+      if (isAuthenticated) {
+        refreshFiles();
+      } else {
         setAuthError(true);
         navigate("/login");
-      } else {
-        refreshFiles();
       }
     };
 
     verifyAndLoad();
 
     return () => { isMounted = false; };
-  }, [navigate]); // navigate is a dependency
+  }, [navigate]); // dependency
 
   // Optional: Prevent the UI from flashing before redirect
   if (authError) return null;
-
-
-  
 
   const handleSelect = (id: string) => {
     const newSelection = new Set(selectedFiles);
@@ -172,7 +129,26 @@ export const Home = () => {
   };
 
   const handleDownload = async (file: UserFile) => {
-    await downloadFile(file.id, file.name);
+    await hasAccess(file.id);
+
+    const manifest_data = (await worker.getChunkInfos(file.id));
+    const chunk_infos = manifest_data.chunks;
+    const file_size = manifest_data.fileSize;
+
+    const fileStream = streamSaver.createWriteStream(file.name, {
+      size:file_size
+    });
+    const writer = fileStream.getWriter();
+
+    for (const chunkInfo of chunk_infos) {
+      const decryption_res = await worker.decryptChunk(file.id, chunkInfo.id, chunkInfo.index);
+
+      await writer.write(decryption_res.decryptedChunk);
+    }
+
+    await writer.close();
+    await worker.closeFile(file.id);
+    console.log("[Download] Download complete successfully.");
   };
 
   const handleDelete = async (file: UserFile) => {
@@ -185,12 +161,22 @@ export const Home = () => {
     }
   };
 
+  const handleShare = async () => {
+
+    await verifyOwnership(activeFile.id);
+
+    const username = usernameShareRef.current?.value;
+    if (!username) return alert("Please enter a username");
+
+    console.log(`Sharing file ${activeFile.id} to ${username}`);
+
+    await worker.shareFile(activeFile.id, username);
+  };
+
   const handleBulkDownload = async () => {
     const filesToDownload = files.filter(f => selectedFiles.has(f.id));
     for (const file of filesToDownload) {
-      await verifyOwnership(file.id);
-
-      await downloadFile(file.id, file.name);
+      await handleDownload(file);
     }
     handleClearSelection();
   };
@@ -207,25 +193,16 @@ export const Home = () => {
     }
   };
 
-  const handleShare = async () => {
-
-    await verifyOwnership(activeFile.id);
-
-    const username = usernameShareRef.current?.value;
-    if (!username) return alert("Please enter a username");
-
-    console.log(`Sharing file ${activeFile.id} to ${username}`);
-    await shareFile(activeFile.id, username);
-    
-  };
-
   const handleBulkShare = async () => {
     const username = usernameShareRef.current?.value;
     if (!username) return alert("Please enter a username");
 
     console.log(`Sharing ${selectedFiles.size} files to ${username}`);
     for (const fileId of selectedFiles) {
-      await shareFile(fileId, username);
+
+      await verifyOwnership(fileId);
+
+      await worker.shareFile(fileId, username);
     }
     
     handleClearSelection();
@@ -273,7 +250,7 @@ export const Home = () => {
                 <form onSubmit={(e) => {e.preventDefault();}}>
                   <label>
                     Recipient Username:
-                    <input type="text" name="username" ref={usernameShareRef} />
+                    <input type="text" name="username" ref={usernameShareRef}/>
                   </label>
                   <button type="submit" onClick={shareMultiple ? handleBulkShare : handleShare}>Share</button>
                 </form>

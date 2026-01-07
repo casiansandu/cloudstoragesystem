@@ -66,7 +66,6 @@ export interface GetUserKeysResponse {
     encryption_salt: string;
     encrypted_private_key: string;
     encryption_public_key: string;
-    encrypted_directory_key: string;
     encryption_nonce: string;
   };
   success: boolean;

@@ -1,16 +1,11 @@
 import config from "../../../config/config";
-import { bufferToHex, decryptRSA, encryptRSA, hexToBuffer } from "../../../utils/crypto";
-import { getManifestData } from "../DownloadFileFeature/downloadFile";
-import { getManifestKey } from "../UploadFileFeature/uploadFile";
+import { bufferToHex, encryptRSA, hexToBuffer, decryptRSA } from "../../../utils/crypto";
 
-async function shareFile(file_id: string, recipient_username: string) {
+async function shareFile(file_id: string, recipient_username: string, encrypted_file_key: string, encrypted_manifest_key: string, userPrivateKey: CryptoKey) {
     
-    const manifest_data = await getManifestData(file_id);
-    const encrypted_manifest_key = await getManifestKey(file_id);
-
     const manifest_key = await decryptRSA(
-        encrypted_manifest_key,
-        hexToBuffer(globalThis.sessionStorage.getItem("decrypted_private_key")!) as BufferSource
+        hexToBuffer(encrypted_manifest_key) as BufferSource,
+        userPrivateKey
     );
 
     const res = await fetch(`${config.BACKENDURL}/users/keys/${recipient_username}/public_key`, {
@@ -34,8 +29,8 @@ async function shareFile(file_id: string, recipient_username: string) {
     );
 
     const file_key = await decryptRSA(
-      hexToBuffer(manifest_data.encryptedFileKey) as BufferSource,
-      hexToBuffer(globalThis.sessionStorage.getItem("decrypted_private_key")!) as BufferSource
+      hexToBuffer(encrypted_file_key) as BufferSource,
+      userPrivateKey
     );
 
     const encrypted_file_key_for_recipient = await encryptRSA(

@@ -22,7 +22,6 @@ export interface SrpUser {
   encryption_salt: string;
   encryption_public_key: string;
   encrypted_private_key: string;
-  encrypted_directory_key: string;
 }
 
 export interface UserAccess {
@@ -102,16 +101,18 @@ export type UserPublic = Omit<User, 'password_hash'>;
 
 export type UserCreationResult = Pick<User, 'username' | 'email'>;
 
-export type GetKeysResult = Pick<SrpUser, 'encryption_salt' | 'encryption_public_key' | 'encrypted_private_key' | 'encrypted_directory_key'>;
+export type GetKeysResult = Pick<SrpUser, 'encryption_salt' | 'encryption_public_key' | 'encrypted_private_key'>;
 export type GetPublicKeyResult = Pick<SrpUser, 'encryption_public_key'>;
 export type GetManifestKeyResult = Pick<UserAccess, 'encrypted_manifest_key'>;
 
 export type SrpCredentials = Omit<SrpUser, 'id' | 'created_at'>;
-
-export interface GetFileMasterKeyResult {
-  encrypted_master_key: string;
+export interface GetFileKeysResult {
+  file_id: string;
+  encrypted_file_key: string;
+  encrypted_manifest_key: string;
 }
 
+export type GetFileMasterKeyResult = Pick<GetFileKeysResult, 'encrypted_file_key'>;
 export interface LoginResult {
   username: string;
   token: string;
