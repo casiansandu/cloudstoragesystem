@@ -15,6 +15,7 @@ export interface WorkerContextType {
   getChunkInfos: (fileId: string) => Promise<{ fileSize: number, chunks: { id: string, index: number, ciphertextLength: number }[] }>;
   decryptChunk: (fileId: string, chunkId: string, chunkIndex: number) => Promise<{ decryptedChunk: Uint8Array}>;
   shareFile: (fileId: string, recipientUsername: string) => Promise<{ success: boolean }>;
+  registerUser: (username: string, email: string, password: string) => Promise<{ success: boolean }>;
 }
 export const WorkerContext = createContext<WorkerContextType | null>(null);
 
