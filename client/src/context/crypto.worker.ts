@@ -27,6 +27,8 @@ import {
   startUpload,
   uploadManifest,
   handleChunkEncryption,
+  uploadChunk,
+  encryptManifest,
 } from "../components/UploadFileFeature/uploadFile";
 import post_register from "../Register/registerUser";
 
@@ -374,24 +376,40 @@ globalThis.onmessage = async (e: MessageEvent) => {
         let chunk_index = 0;
 
         while (chunk_index < chunk_number) {
-          await handleChunkEncryption(
+          const { chunk_data_buffer, chunk_id } = await handleChunkEncryption(
             file_key,
             chunk_index,
             file_id,
             chunk_size,
             selectedFile,
-            manifest,
             chunk_number
           );
+
+          await uploadChunk(chunk_data_buffer, file_id, chunk_id);
+
+          manifest.chunkInfos.push({
+            index: chunk_index,
+            id: chunk_id,
+            ciphertextLength: chunk_data_buffer.byteLength,
+          });
 
           chunk_index += 1;
         }
 
-        const { manifest_uuid, wrapped_manifest_key } = await uploadManifest(
+        // const { manifest_uuid, wrapped_manifest_key } = await uploadManifest(
+        //   file_id,
+        //   manifest,
+        //   userPublicKey,
+        //   userPrivateKey
+        // );
+
+        const { encrypted_manifest_buffer, manifest_uuid, wrapped_manifest_key } =
+          await encryptManifest(file_id, manifest, userPrivateKey, userPublicKey);
+
+        await uploadChunk(
+          encrypted_manifest_buffer,
           file_id,
-          manifest,
-          userPublicKey,
-          userPrivateKey
+          manifest_uuid
         );
 
         //console.log("manifest uploaded: ", manifest_uuid)

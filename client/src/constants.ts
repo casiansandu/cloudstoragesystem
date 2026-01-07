@@ -1,3 +1,3 @@
 
 
-export const public_namespace_uuid = "64c286f6-80c3-49ed-9c85-08ff0ed1ba65";
+export const public_namespace_uuid = "faf5c20a-fc85-4892-8f97-4c8c441505e3";

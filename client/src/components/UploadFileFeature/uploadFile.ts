@@ -73,7 +73,7 @@ export async function startUpload(enc_file_name_data: EncryptedResult, selectedF
   return file_id;
 }
 
-async function uploadChunk(bytes: ArrayBuffer, file_id: string, chunk_id: string): Promise<number> {
+export async function uploadChunk(bytes: ArrayBuffer, file_id: string, chunk_id: string): Promise<number> {
   const res = await fetch(`${config.BACKENDURL}/files/upload/${file_id}/${chunk_id}`, {
     method: 'POST',
     headers: {
@@ -142,7 +142,6 @@ export async function handleChunkEncryption(
     file_id: string, 
     chunk_size: number, 
     selectedFile: File, 
-    manifest: ManifestData, 
     chunk_number: number
 ){
     console.log(chunk_index + "/" + chunk_number);
@@ -168,13 +167,46 @@ export async function handleChunkEncryption(
       chunk_data_uint8.byteOffset + chunk_data_uint8.byteLength
     ) as ArrayBuffer;
 
-    await uploadChunk(chunk_data_buffer, file_id, chunk_id);
-
-    manifest.chunkInfos.push({
-      index: chunk_index,
-      id: chunk_id,
-      ciphertextLength: enc_chunk.ciphertext.byteLength,
-    });
-
+    return { chunk_data_buffer, chunk_id };
 }
 
+export async function encryptManifest(file_id: string, manifest: ManifestData, private_key: CryptoKey, public_key: CryptoKey)
+  : Promise<{encrypted_manifest_buffer: ArrayBuffer, manifest_uuid: string, wrapped_manifest_key: string}> {
+    const manifest_name = sha256(file_id + "manifest");
+
+  const encrypted_manifest_key = await getManifestKeyFromBackend(file_id);
+
+  if (!encrypted_manifest_key) {
+      throw new Error("No manifest key found for file: " + file_id);
+  }
+
+  if (!private_key) {
+      throw new Error("User private key not initialized");
+  }
+
+  const manifest_key = await decryptRSA(
+      encrypted_manifest_key,
+      private_key
+  ) as BufferSource;
+
+  const enc_manifest = await encrypt(JSON.stringify(manifest), manifest_key);
+
+  const wrapped_manifest_key = (await encryptRSA(
+      manifest_key,
+      public_key
+  )) as BufferSource;
+
+  const enc_manifest_nonce_and_ciphertext = concatUint8(
+      enc_manifest.nonce,
+      enc_manifest.ciphertext
+  );
+
+  const enc_manifest_buffer = enc_manifest_nonce_and_ciphertext.buffer.slice(
+      enc_manifest_nonce_and_ciphertext.byteOffset,
+      enc_manifest_nonce_and_ciphertext.byteOffset + enc_manifest_nonce_and_ciphertext.byteLength
+  ) as ArrayBuffer;
+  const manifest_uuid = gen_uuidv5(manifest_name);
+
+  
+  return { encrypted_manifest_buffer: enc_manifest_buffer, manifest_uuid, wrapped_manifest_key : bufferToHex(wrapped_manifest_key) };
+} 
