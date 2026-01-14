@@ -23,4 +23,3 @@ dist-ssr
 *.sln
 *.sw?
 ./FileSystem/*
-./src/constants

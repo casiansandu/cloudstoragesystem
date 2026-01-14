@@ -23,7 +23,7 @@ export type ManifestData = {
   file_id: string;
   totalChunks: number;
   uploadedAt: string;
-  encryptedFileKey: string; 
+  encryptedFileKey: string;
   file_size: number;
   chunkInfos: {
     index: number;

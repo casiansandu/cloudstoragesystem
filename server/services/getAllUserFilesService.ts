@@ -12,7 +12,6 @@ async function getAllUserFilesService(owner_id: string): Promise<Array<{id: stri
         [owner_id]
     );
 
-
     return files.map(file => ({ id: file.id, name: file.enc_name }));
 }
 

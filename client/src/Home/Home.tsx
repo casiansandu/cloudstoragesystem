@@ -53,6 +53,7 @@ export const Home = () => {
   const worker = useGlobalWorker();
 
   const usernameShareRef = useRef<HTMLInputElement>(null);
+  const periodShareRef = useRef<HTMLInputElement>(null);
   
   const [activeFile, setActiveFile] = useState<UserFile>({ id: "", name: "" });
   const [files, setFiles] = useState<UserFile[]>([]);
@@ -166,11 +167,17 @@ export const Home = () => {
     await verifyOwnership(activeFile.id);
 
     const username = usernameShareRef.current?.value;
+    let period = Number(periodShareRef.current?.value);
+
+    if (period <= 0) {
+      return alert("Please enter a valid sharing period in days");
+    } else period ??= 0;
+
     if (!username) return alert("Please enter a username");
 
     console.log(`Sharing file ${activeFile.id} to ${username}`);
 
-    await worker.shareFile(activeFile.id, username);
+    await worker.shareFile(activeFile.id, username, period);
   };
 
   const handleBulkDownload = async () => {
@@ -195,6 +202,12 @@ export const Home = () => {
 
   const handleBulkShare = async () => {
     const username = usernameShareRef.current?.value;
+    let period = Number(periodShareRef.current?.value);
+
+    if (period <= 0) {
+      return alert("Please enter a valid sharing period in days");
+    } else period ??= 0;
+
     if (!username) return alert("Please enter a username");
 
     console.log(`Sharing ${selectedFiles.size} files to ${username}`);
@@ -202,7 +215,7 @@ export const Home = () => {
 
       await verifyOwnership(fileId);
 
-      await worker.shareFile(fileId, username);
+      await worker.shareFile(fileId, username, period);
     }
     
     handleClearSelection();
@@ -248,11 +261,17 @@ export const Home = () => {
                   Share files
                 </h3>
                 <form onSubmit={(e) => {e.preventDefault();}}>
-                  <label>
-                    Recipient Username:
-                    <input type="text" name="username" ref={usernameShareRef}/>
-                  </label>
-                  <button type="submit" onClick={shareMultiple ? handleBulkShare : handleShare}>Share</button>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <label>
+                      Recipient Username:
+                      <input type="text" name="username" ref={usernameShareRef} style={{ display: 'block', width: '100%' }} />
+                    </label>
+                    <label>
+                      Period (days):
+                      <input type="number" name="period" ref={periodShareRef} style={{ display: 'block', width: '100%' }} />
+                    </label>
+                  </div>
+                  <button type="submit" onClick={shareMultiple ? handleBulkShare : handleShare} style={{ marginTop: '10px' }}>Share</button>
                 </form>
           </SharePopup>
 

@@ -25,7 +25,6 @@ import shareFile from "../components/ShareFileFeature/shareFile";
 import { fetchChunk } from "../components/DownloadFileFeature/downloadFile";
 import {
   startUpload,
-  uploadManifest,
   handleChunkEncryption,
   uploadChunk,
   encryptManifest,
@@ -79,6 +78,55 @@ export const getManifestData = async (
   );
 
   return manifest_json;
+};
+
+const handleLastChunkAndManifest = async (
+  encrypted_manifest_buffer: Uint8Array, 
+  chunk_data_buffer: Uint8Array, 
+  chunk_size: number, 
+  file_id: string, 
+  manifest_uuid: string
+) => {
+  const manifest_data_len = encrypted_manifest_buffer.byteLength + 4;
+
+  if (chunk_data_buffer.byteLength + manifest_data_len <= chunk_size) {
+
+    const manifest_len = new Uint8Array(4);
+    new DataView(manifest_len.buffer).setUint32(0, encrypted_manifest_buffer.byteLength, false);
+    
+    const noise_len = chunk_size - (chunk_data_buffer.byteLength + manifest_data_len);
+
+    let combined_chunk_buffer: Uint8Array;
+
+    if (noise_len > 0) {
+      const noise = crypto.getRandomValues(new Uint8Array(noise_len));
+      const d1 = concatUint8(
+        chunk_data_buffer,
+        noise
+      );
+      const d2 = concatUint8(
+        encrypted_manifest_buffer,
+        manifest_len
+      );
+      combined_chunk_buffer = concatUint8(
+        d1,
+        d2
+      );
+    } else {
+      const d1 = concatUint8(
+        chunk_data_buffer,
+        encrypted_manifest_buffer
+      );
+      combined_chunk_buffer = concatUint8(
+        d1,
+        manifest_len
+      );
+    }
+      
+
+      await uploadChunk(combined_chunk_buffer.buffer as ArrayBuffer, file_id, manifest_uuid);
+      console.log("Uploaded last chunk with manifest and noise");
+  }
 };
 
 globalThis.onmessage = async (e: MessageEvent) => {
@@ -338,21 +386,30 @@ globalThis.onmessage = async (e: MessageEvent) => {
       case "UPLOAD_FILE": {
         const selectedFile: File = payload.file;
         let file_id = "";
+
+        if (selectedFile.size === 0) {
+          throw new Error("Cannot upload empty file.");
+        } else if (selectedFile.size > 10 * 1024 * 1024 * 1024) {
+          throw new Error("File size exceeds the 10 GB limit.");
+        }
+
         if (!userPrivateKey) {
           throw new Error("User private key not initialized");
         }
+
         if (!userPublicKey) {
           throw new Error("No public key found in session storage");
         }
+
         const file_size_bytes = selectedFile.size;
 
         const chunk_size = 5 * 1024 * 1024; // 5 MB
         const chunk_number = Math.ceil(file_size_bytes / chunk_size);
 
-        const file_key = await generateMasterKey(); // BufferSource
+        const file_key = await generateMasterKey();
         const enc_file_key = bufferToHex(
           (await encryptRSA(file_key, userPublicKey)) as BufferSource
-        ); //string
+        );
 
         const enc_file_name_data = await encrypt(selectedFile.name, file_key);
 
@@ -396,13 +453,6 @@ globalThis.onmessage = async (e: MessageEvent) => {
           chunk_index += 1;
         }
 
-        // const { manifest_uuid, wrapped_manifest_key } = await uploadManifest(
-        //   file_id,
-        //   manifest,
-        //   userPublicKey,
-        //   userPrivateKey
-        // );
-
         const { encrypted_manifest_buffer, manifest_uuid, wrapped_manifest_key } =
           await encryptManifest(file_id, manifest, userPrivateKey, userPublicKey);
 
@@ -411,8 +461,6 @@ globalThis.onmessage = async (e: MessageEvent) => {
           file_id,
           manifest_uuid
         );
-
-        //console.log("manifest uploaded: ", manifest_uuid)
 
         sessionFileKeys.set(file_id, {
           encrypted_file_key: enc_file_key,
@@ -508,6 +556,7 @@ globalThis.onmessage = async (e: MessageEvent) => {
 
         const file_id: string = payload.fileId;
         const recipient_username: string = payload.recipientUsername;
+        const share_period: number = payload.period;
 
         const encrypted_manifest_key = sessionFileKeys.get(
           payload.fileId

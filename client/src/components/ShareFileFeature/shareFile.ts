@@ -1,7 +1,13 @@
 import config from "../../../config/config";
 import { bufferToHex, encryptRSA, hexToBuffer, decryptRSA } from "../../../utils/crypto";
 
-async function shareFile(file_id: string, recipient_username: string, encrypted_file_key: string, encrypted_manifest_key: string, userPrivateKey: CryptoKey) {
+async function shareFile(
+    file_id: string, 
+    recipient_username: string, 
+    encrypted_file_key: string, 
+    encrypted_manifest_key: string, 
+    userPrivateKey: CryptoKey
+) {
     
     const manifest_key = await decryptRSA(
         hexToBuffer(encrypted_manifest_key) as BufferSource,
