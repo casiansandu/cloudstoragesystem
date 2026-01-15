@@ -12,20 +12,28 @@ export async function startUploadController(
     res: Response<ApiSuccessResponse<StartUploadDataResult> | ApiErrorResponse>
 ): Promise<void> {
     const id = req.user?.id;
+    if (!id) {
+        res.status(401).json({ message: 'Unauthorized', success: false });
+        return;
+    }
+    console.log('Request body:', req.body);
 
-    if (!id || !req.body.name || !req.body.path || !req.body.file_size || !req.body.encrypted_file_key) {
+    const {name, path, file_size, encrypted_file_key, encrypted_manifest_key, share_duration} = req.body;
+
+    if (!name || !path || !file_size || !encrypted_file_key || !encrypted_manifest_key || (share_duration === undefined || share_duration === null)) {
         res.status(400).json({ message: 'Missing parameters', success: false });
         return;
     }
     
     try {
         const { file_id, access_id } = await startUploadService(
-            req.body.name, 
+            name, 
             id, 
-            req.body.path, 
-            req.body.file_size, 
-            req.body.encrypted_file_key, 
-            req.body.encrypted_manifest_key
+            path, 
+            file_size, 
+            encrypted_file_key, 
+            encrypted_manifest_key,
+            share_duration
         );
 
         res.status(200).json({ message: 'Upload started', success: true, data: { file_id, access_id } });

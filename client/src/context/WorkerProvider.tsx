@@ -64,8 +64,8 @@ export const WorkerProvider = ({ children }: { children: React.ReactNode }) => {
     decryptChunk: (fileId, chunkId, chunkIndex) =>
       sendToWorker('GET_AND_DECRYPT_CHUNK', { fileId, chunkId, chunkIndex }),
 
-    shareFile: (fileId, recipientUsername, period) =>
-      sendToWorker('SHARE_FILE', { fileId, recipientUsername, period }),
+    shareFile: (fileId, recipientUsername, share_duration) =>
+      sendToWorker('SHARE_FILE', { fileId, recipientUsername, share_duration }),
 
     registerUser: (username, email, password) =>
       sendToWorker('REGISTER_USER', { username, email, password})

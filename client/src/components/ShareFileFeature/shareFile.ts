@@ -6,7 +6,8 @@ async function shareFile(
     recipient_username: string, 
     encrypted_file_key: string, 
     encrypted_manifest_key: string, 
-    userPrivateKey: CryptoKey
+    userPrivateKey: CryptoKey,
+    share_duration: number
 ) {
     
     const manifest_key = await decryptRSA(
@@ -53,7 +54,8 @@ async function shareFile(
             file_id,
             recipient_username,
             encrypted_file_key: bufferToHex(encrypted_file_key_for_recipient as BufferSource),
-            encrypted_manifest_key: bufferToHex(encrypted_manifest_key_for_recipient as BufferSource)
+            encrypted_manifest_key: bufferToHex(encrypted_manifest_key_for_recipient as BufferSource),
+            share_duration
         }),
         credentials: "include"
     });

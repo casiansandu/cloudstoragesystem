@@ -8,9 +8,9 @@ type FileRequestResult = {
 
 export async function shareFileController(req: ShareFileRequest, res: Response<ApiSuccessResponse<FileRequestResult> | ApiErrorResponse>): Promise<void> {
 
-    const { file_id, recipient_username, encrypted_file_key, encrypted_manifest_key } = req.body;
+    const { file_id, recipient_username, encrypted_file_key, encrypted_manifest_key, share_duration} = req.body;
 
-    if (!file_id || !recipient_username || !encrypted_file_key || !encrypted_manifest_key) {
+    if (!file_id || !recipient_username || !encrypted_file_key || !encrypted_manifest_key || (share_duration === undefined || share_duration === null)) {
         res.status(400).json({
             message: 'Missing required fields',
             success: false
@@ -19,7 +19,7 @@ export async function shareFileController(req: ShareFileRequest, res: Response<A
     }
 
     try {
-        const access_id = await shareFileService(file_id, recipient_username, encrypted_file_key, encrypted_manifest_key);
+        const access_id = await shareFileService(file_id, recipient_username, encrypted_file_key, encrypted_manifest_key, share_duration);
         res.status(200).json({
             message: 'File shared successfully',
             success: true,

@@ -26,7 +26,7 @@ async function isFileOwnerController(req: AuthenticatedRequest, res: Response<Ap
         const is_owner = await isFileOwnerService(userId, fileId);
         if (!is_owner) {
             res.status(403).json({
-                message: 'Forbidden: You do not own this file',
+                message: 'You do not own this file',
                 success: false
             });
             return;

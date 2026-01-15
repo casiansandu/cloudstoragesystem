@@ -28,7 +28,13 @@ async function getManifestKeyFromBackend(file_id: string): Promise<BufferSource>
   return hexToBuffer(data.data.encrypted_manifest_key) as BufferSource;
 }
 
-export async function startUpload(enc_file_name_data: EncryptedResult, selectedFile: File, file_id: string, enc_file_key: string, public_key: CryptoKey) : Promise<string> {
+export async function startUpload(
+  enc_file_name_data: EncryptedResult, 
+  selectedFile: File, 
+  file_id: string, 
+  enc_file_key: string, 
+  public_key: CryptoKey, 
+  share_duration: number) : Promise<string> {
 
   const manifest_key = await generateMasterKey();
 
@@ -48,7 +54,8 @@ export async function startUpload(enc_file_name_data: EncryptedResult, selectedF
           path: "/",
           file_size: selectedFile.size,
           encrypted_file_key: enc_file_key,
-          encrypted_manifest_key: bufferToHex(wrapped_manifest_key)
+          encrypted_manifest_key: bufferToHex(wrapped_manifest_key),
+          share_duration
       }),
       credentials: "include"
   }).then(res => res.json()).then((data: FileUploadResponse) => {

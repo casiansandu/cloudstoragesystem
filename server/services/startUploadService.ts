@@ -8,7 +8,8 @@ async function startUploadService(
     path: string,
     file_size: number,
     encrypted_file_key: string,
-    wrapped_manifest_key: string
+    wrapped_manifest_key: string,
+    share_duration: number
 ): Promise<{ file_id: string, access_id: string }> {
     
     return db.tx(async (t) => {
@@ -19,8 +20,8 @@ async function startUploadService(
         );
 
         const access_id = await t.one(
-            'INSERT INTO user_access (encrypted_file_key, file_id, user_id, encrypted_manifest_key) VALUES ($1, $2, $3, $4) RETURNING access_id',
-            [encrypted_file_key, file_id.id, userId, wrapped_manifest_key]
+            'INSERT INTO user_access (encrypted_file_key, file_id, user_id, encrypted_manifest_key, share_duration) VALUES ($1, $2, $3, $4, $5) RETURNING access_id',
+            [encrypted_file_key, file_id.id, userId, wrapped_manifest_key, share_duration]
         );
 
         const storagePath = getStoragePath(file_id.id);

@@ -64,6 +64,7 @@ export interface StartFileUploadRequest extends AuthenticatedRequest {
     file_size: number;
     encrypted_file_key: string;
     encrypted_manifest_key: string;
+    share_duration: number;
   };
 };
 
@@ -94,6 +95,7 @@ export interface ShareFileRequest extends AuthenticatedRequest {
     recipient_username: string;
     encrypted_file_key: string;
     encrypted_manifest_key: string;
+    share_duration: number;
   };
 }
 

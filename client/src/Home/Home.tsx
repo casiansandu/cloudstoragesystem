@@ -53,7 +53,7 @@ export const Home = () => {
   const worker = useGlobalWorker();
 
   const usernameShareRef = useRef<HTMLInputElement>(null);
-  const periodShareRef = useRef<HTMLInputElement>(null);
+  const shareDurationRef = useRef<HTMLInputElement>(null);
   
   const [activeFile, setActiveFile] = useState<UserFile>({ id: "", name: "" });
   const [files, setFiles] = useState<UserFile[]>([]);
@@ -130,60 +130,81 @@ export const Home = () => {
   };
 
   const handleDownload = async (file: UserFile) => {
-    await hasAccess(file.id);
+    try {
+      await hasAccess(file.id);
 
-    const manifest_data = (await worker.getChunkInfos(file.id));
-    const chunk_infos = manifest_data.chunks;
-    const file_size = manifest_data.fileSize;
+      const manifest_data = (await worker.getChunkInfos(file.id));
+      const chunk_infos = manifest_data.chunks;
+      const file_size = manifest_data.fileSize;
 
-    const fileStream = streamSaver.createWriteStream(file.name, {
-      size:file_size
-    });
-    const writer = fileStream.getWriter();
+      const fileStream = streamSaver.createWriteStream(file.name, {
+        size:file_size
+      });
+      const writer = fileStream.getWriter();
 
-    for (const chunkInfo of chunk_infos) {
-      const decryption_res = await worker.decryptChunk(file.id, chunkInfo.id, chunkInfo.index);
+      for (const chunkInfo of chunk_infos) {
+        const decryption_res = await worker.decryptChunk(file.id, chunkInfo.id, chunkInfo.index);
 
-      await writer.write(decryption_res.decryptedChunk);
+        await writer.write(decryption_res.decryptedChunk);
+      }
+
+      await writer.close();
+      await worker.closeFile(file.id);
+      console.log("[Download] Download complete successfully.");
+    } catch (error) {
+      console.error("Error downloading file:", error);
+      alert("Failed to download file: " + (error as Error).message);
     }
-
-    await writer.close();
-    await worker.closeFile(file.id);
-    console.log("[Download] Download complete successfully.");
+    
   };
 
   const handleDelete = async (file: UserFile) => {
-    if (globalThis.confirm(`Are you sure you want to delete ${file.name}?`)) {
+  if (globalThis.confirm(`Are you sure you want to delete ${file.name}?`)) {
+      try {
         await verifyOwnership(file.id);
         await deleteFile(file.id);
 
         refreshFiles();
         handleClearSelection();
+      } catch (error) {
+        console.error("Error deleting file:", error);
+        alert("Failed to delete file: " + (error as Error).message);
+      }
     }
   };
 
   const handleShare = async () => {
 
-    await verifyOwnership(activeFile.id);
+    try {
+      await verifyOwnership(activeFile.id);
 
-    const username = usernameShareRef.current?.value;
-    let period = Number(periodShareRef.current?.value);
+      const username = usernameShareRef.current?.value;
+      let share_duration = Number(shareDurationRef.current?.value);
 
-    if (period <= 0) {
-      return alert("Please enter a valid sharing period in days");
-    } else period ??= 0;
+      if (share_duration < 0) {
+        return alert("Please enter a valid sharing period in days");
+      } else share_duration ??= 0;
 
-    if (!username) return alert("Please enter a username");
+      if (!username) return alert("Please enter a username");
 
-    console.log(`Sharing file ${activeFile.id} to ${username}`);
+      console.log(`Sharing file ${activeFile.id} to ${username}`);
 
-    await worker.shareFile(activeFile.id, username, period);
+      await worker.shareFile(activeFile.id, username, share_duration);
+    } catch (error) {
+      console.error("Error sharing file:", error);
+      alert("Failed to share file: " + (error as Error).message);
+    }
   };
 
   const handleBulkDownload = async () => {
     const filesToDownload = files.filter(f => selectedFiles.has(f.id));
     for (const file of filesToDownload) {
-      await handleDownload(file);
+      try {
+        await handleDownload(file);
+      } catch (error) {
+        console.error("Error downloading file:", error);
+        alert("Failed to download file " + file.name + ": " + (error as Error).message);
+      }
     }
     handleClearSelection();
   };
@@ -193,7 +214,13 @@ export const Home = () => {
       const filesToDelete = files.filter(f => selectedFiles.has(f.id));
       console.log("Deleting files:", filesToDelete);
       for (const file of filesToDelete) {
-        await deleteFile(file.id);
+        try {
+          await verifyOwnership(file.id);
+          await deleteFile(file.id);
+        } catch (error) {
+          console.error("Error deleting file:", error);
+          alert(`Failed to delete file ${file.name}: ` + (error as Error).message);
+        }
       }
       refreshFiles();
       handleClearSelection();
@@ -202,20 +229,23 @@ export const Home = () => {
 
   const handleBulkShare = async () => {
     const username = usernameShareRef.current?.value;
-    let period = Number(periodShareRef.current?.value);
+    let share_duration = Number(shareDurationRef.current?.value);
 
-    if (period <= 0) {
+    if (share_duration < 0) {
       return alert("Please enter a valid sharing period in days");
-    } else period ??= 0;
-
+    } else share_duration ??= 0;
     if (!username) return alert("Please enter a username");
 
     console.log(`Sharing ${selectedFiles.size} files to ${username}`);
     for (const fileId of selectedFiles) {
+      try {
+        await verifyOwnership(fileId);
 
-      await verifyOwnership(fileId);
-
-      await worker.shareFile(fileId, username, period);
+        await worker.shareFile(fileId, username, share_duration);
+      } catch (error) {
+        console.error("Error sharing file:", error);
+        alert("Failed to share file ID " + fileId + ": " + (error as Error).message);
+      }
     }
     
     handleClearSelection();
@@ -268,7 +298,7 @@ export const Home = () => {
                     </label>
                     <label>
                       Period (days):
-                      <input type="number" name="period" ref={periodShareRef} style={{ display: 'block', width: '100%' }} />
+                      <input type="number" name="period" ref={shareDurationRef} style={{ display: 'block', width: '100%' }} />
                     </label>
                   </div>
                   <button type="submit" onClick={shareMultiple ? handleBulkShare : handleShare} style={{ marginTop: '10px' }}>Share</button>

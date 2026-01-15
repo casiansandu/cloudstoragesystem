@@ -386,6 +386,7 @@ globalThis.onmessage = async (e: MessageEvent) => {
       case "UPLOAD_FILE": {
         const selectedFile: File = payload.file;
         let file_id = "";
+        const share_duration: number = 0; // indefinite time
 
         if (selectedFile.size === 0) {
           throw new Error("Cannot upload empty file.");
@@ -418,7 +419,8 @@ globalThis.onmessage = async (e: MessageEvent) => {
           selectedFile,
           file_id,
           enc_file_key,
-          userPublicKey
+          userPublicKey,
+          share_duration
         );
 
         const manifest: ManifestData = {
@@ -556,7 +558,8 @@ globalThis.onmessage = async (e: MessageEvent) => {
 
         const file_id: string = payload.fileId;
         const recipient_username: string = payload.recipientUsername;
-        const share_period: number = payload.period;
+        const share_duration: number = payload.share_duration;
+        console.log("Share duration:", share_duration);
 
         const encrypted_manifest_key = sessionFileKeys.get(
           payload.fileId
@@ -581,7 +584,8 @@ globalThis.onmessage = async (e: MessageEvent) => {
           recipient_username,
           encrypted_file_key,
           encrypted_manifest_key,
-          userPrivateKey
+          userPrivateKey,
+          share_duration
         );
         result = { success: true };
         break;

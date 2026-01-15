@@ -10,6 +10,7 @@ export const verifyOwnership = async (file_id: string) => {
     if (!data.success) {
       throw new Error("Ownership verification failed: " + data.message);
     }
+
 }
 
 export const hasAccess = async (file_id: string) => {
@@ -22,6 +23,7 @@ export const hasAccess = async (file_id: string) => {
     if (!data.success) {
       throw new Error("Access check failed: " + data.message);
     }
+
 }
 
 export const fetchChunk = async (file_id: string, chunk_id: string) => {
