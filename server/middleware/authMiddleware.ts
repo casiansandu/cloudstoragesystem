@@ -1,5 +1,4 @@
 import { Response, NextFunction } from 'express';
-import { verifyJwtToken } from '../services/verifyJwt';
 import { AuthenticatedRequest } from '../types';
 import { JWT_SECRET } from '../config/config';
 import jwt from 'jsonwebtoken';

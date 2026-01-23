@@ -22,6 +22,9 @@ export interface SrpUser {
   encryption_salt: string;
   encryption_public_key: string;
   encrypted_private_key: string;
+
+  public_keys_bundle: string;
+  encrypted_seed: string;
 }
 
 export interface UserAccess {
@@ -30,6 +33,9 @@ export interface UserAccess {
   access_id: string;
   user_id: string;
   encrypted_manifest_key: string;
+  share_duration: number;
+  x25519_ephemeral_public: string;
+  mlkem_ciphertext: string;
 }
 
 export interface Session {
@@ -68,6 +74,19 @@ export interface StartFileUploadRequest extends AuthenticatedRequest {
   };
 };
 
+export interface StartHybridFileUploadRequest extends AuthenticatedRequest {
+  body: {
+    name: string;
+    path: string;
+    file_size: number;
+    encrypted_file_key: string;
+    encrypted_manifest_key: string;
+    x25519_ephemeral_public: string;
+    mlkem_ciphertext: string;
+    share_duration: number;
+  };
+};
+
 export type UserLogin = Pick<User, 'username'> & {
   password: string;
 };
@@ -89,6 +108,8 @@ export interface SrpLoginVerifyRequest extends Request {
   body: SrpLoginVerify;
 }
 
+export type HybridInfoResult = Pick<UserAccess, 'x25519_ephemeral_public' | 'mlkem_ciphertext'>;
+
 export interface ShareFileRequest extends AuthenticatedRequest {
   body: {
     file_id: string;
@@ -99,12 +120,26 @@ export interface ShareFileRequest extends AuthenticatedRequest {
   };
 }
 
+export interface ShareFileHybridRequest extends AuthenticatedRequest {
+  body: {
+    file_id: string;
+    recipient_username: string;
+    encrypted_file_key: string;
+    encrypted_manifest_key: string;
+    share_duration: number;
+    mlkem_ciphertext: string;
+    x25519_ephemeral_public?: string;
+  };
+}
+
 export type UserPublic = Omit<User, 'password_hash'>;
 
 export type UserCreationResult = Pick<User, 'username' | 'email'>;
 
 export type GetKeysResult = Pick<SrpUser, 'encryption_salt' | 'encryption_public_key' | 'encrypted_private_key'>;
 export type GetPublicKeyResult = Pick<SrpUser, 'encryption_public_key'>;
+export type GetPublicKeyBundleResult = Pick<SrpUser, 'public_keys_bundle'>;
+export type GetEncryptedSeedResult = Pick<SrpUser, 'encrypted_seed'>;
 export type GetManifestKeyResult = Pick<UserAccess, 'encrypted_manifest_key'>;
 
 export type SrpCredentials = Omit<SrpUser, 'id' | 'created_at'>;

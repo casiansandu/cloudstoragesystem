@@ -80,6 +80,62 @@ export async function startUpload(
   return file_id;
 }
 
+export async function startHybridUpload(
+  enc_file_name_data: EncryptedResult, 
+  selectedFile: File, 
+  file_id: string, 
+  enc_file_key: string, 
+  public_key: CryptoKey,
+  x25519_ephemeral_public: Uint8Array,
+  mlkem_ciphertext: Uint8Array,
+  share_duration: number) : Promise<string> {
+
+  const manifest_key = await generateMasterKey();
+
+  const wrapped_manifest_key = (await encryptRSA(
+      manifest_key,
+      public_key
+  )) as BufferSource;
+
+  await fetch(`${config.BACKENDURL}/files/upload/start_hybrid`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+          name: bufferToHex(concatUint8(
+              new Uint8Array(enc_file_name_data.nonce),
+              new Uint8Array(enc_file_name_data.ciphertext)
+          ) as BufferSource),
+          path: "/",
+          file_size: selectedFile.size,
+          encrypted_file_key: enc_file_key,
+          encrypted_manifest_key: bufferToHex(wrapped_manifest_key),
+          share_duration,
+          x25519_ephemeral_public: bufferToHex(x25519_ephemeral_public as BufferSource),
+          mlkem_ciphertext: bufferToHex(mlkem_ciphertext as BufferSource)
+      }),
+      credentials: "include"
+  }).then(res => res.json()).then((data: FileUploadResponse) => {
+
+      file_id = data.data?.file_id?? "";
+      //const access_id = data.data?.access_id?? "";
+
+      if (!data.success) {
+          throw new Error("Failed to start upload: " + data.message);
+      }
+
+      if (!data.data?.file_id) {
+          throw new Error("No file ID returned from server" + data.message);
+      }
+
+      if (!data.data?.access_id) {
+          throw new Error("No access ID returned from server" + data.message);
+      }
+
+      
+  });
+  return file_id;
+}
+
 export async function uploadChunk(bytes: ArrayBuffer, file_id: string, chunk_id: string): Promise<number> {
   const res = await fetch(`${config.BACKENDURL}/files/upload/${file_id}/${chunk_id}`, {
     method: 'POST',

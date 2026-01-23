@@ -68,7 +68,12 @@ export const WorkerProvider = ({ children }: { children: React.ReactNode }) => {
       sendToWorker('SHARE_FILE', { fileId, recipientUsername, share_duration }),
 
     registerUser: (username, email, password) =>
-      sendToWorker('REGISTER_USER', { username, email, password})
+      sendToWorker('REGISTER_USER', { username, email, password}),
+
+    logoutUser: () =>
+      sendToWorker('LOGOUT_USER', {}),
+
+
   }), [sendToWorker]);
 
   return (

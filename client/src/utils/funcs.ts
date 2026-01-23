@@ -2,15 +2,20 @@
 import { v5 as uuidv5 } from 'uuid';
 import { public_namespace_uuid } from '../constants';
 
-export function concatUint8(a: Uint8Array | ArrayBuffer, b: Uint8Array | ArrayBuffer): Uint8Array {
-    
-    const viewA = a instanceof Uint8Array ? a : new Uint8Array(a);
-    const viewB = b instanceof Uint8Array ? b : new Uint8Array(b);
+export function concatUint8(...args: (Uint8Array | ArrayBuffer)[]): Uint8Array {
+    // 1. Convert all inputs to Uint8Array views and calculate total length
+    const views = args.map(arg => arg instanceof Uint8Array ? arg : new Uint8Array(arg));
+    const totalLength = views.reduce((sum, view) => sum + view.length, 0);
 
-    const result = new Uint8Array(viewA.length + viewB.length);
+    // 2. Create the result buffer
+    const result = new Uint8Array(totalLength);
     
-    result.set(viewA, 0);
-    result.set(viewB, viewA.length);
+    // 3. Set each buffer at the correct offset
+    let offset = 0;
+    for (const view of views) {
+        result.set(view, offset);
+        offset += view.length;
+    }
     
     return result;
 }

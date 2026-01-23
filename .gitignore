@@ -1,3 +1,5 @@
 .env
 server/FileSpace/*
 client/src/constants.ts
+server/certs/*
+node_modules/

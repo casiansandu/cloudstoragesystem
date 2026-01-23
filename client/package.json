@@ -10,6 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@noble/curves": "^2.0.1",
+    "@noble/post-quantum": "^0.5.4",
+    "@noble/secp256k1": "^3.0.0",
     "@scirexs/srp6a": "^0.1.15",
     "argon2id": "^1.0.1",
     "bootstrap": "^5.3.8",

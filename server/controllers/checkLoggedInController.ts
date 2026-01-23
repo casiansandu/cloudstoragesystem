@@ -6,9 +6,17 @@ import { ApiErrorResponse, ApiSuccessResponse, LoginStatusResponse } from "../ty
 export const checkLoginStatus = async (req: Request, res: Response<ApiSuccessResponse<LoginStatusResponse> | ApiErrorResponse>) => {
   const token = req.cookies?.token;
 
+  if (!token) {
+    res.status(200).json({
+      success: true,
+      data: { isAuthenticated: false },
+      message: "User is not logged in",
+    });
+    return;
+  }
+
   try {
     const username = await verifyJwt(token);
-    //console.log(username);
     if (username) {
       res.status(200).json({
         success: true,

@@ -9,7 +9,9 @@ export async function createSrpUserService(userData: SrpUserRegistration): Promi
     srp_verifier,
     encryption_salt,
     encrypted_private_key,
-    encryption_public_key
+    encryption_public_key,
+    public_keys_bundle,
+    encrypted_seed
   } = userData;
 
   const checkUsername = await db.oneOrNone<User>(
@@ -31,10 +33,11 @@ export async function createSrpUserService(userData: SrpUserRegistration): Promi
   }
 
   await db.none(
-    'INSERT INTO srp_users(username, email, srp_salt, srp_verifier, encryption_salt, encryption_public_key, encrypted_private_key) VALUES($1, $2, $3, $4, $5, $6, $7)',
+    'INSERT INTO srp_users(username, email, srp_salt, srp_verifier, encryption_salt, encryption_public_key, encrypted_private_key, public_keys_bundle, encrypted_seed) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)',
     [username, email, 
       srp_salt, srp_verifier, 
-      encryption_salt, encryption_public_key, encrypted_private_key]
+      encryption_salt, encryption_public_key, encrypted_private_key,
+      public_keys_bundle, encrypted_seed]
   );
 
   return { username, email };
