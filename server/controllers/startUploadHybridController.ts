@@ -16,11 +16,11 @@ export async function startHybridUploadController(
         res.status(401).json({ message: 'Unauthorized', success: false });
         return;
     }
-    console.log('Request body:', req.body);
+    //console.log('Request body:', req.body);
 
-    const {name, path, file_size, encrypted_file_key, encrypted_manifest_key, x25519_ephemeral_public, mlkem_ciphertext, share_duration} = req.body;
+    const {name, path, file_size, encrypted_file_key, x25519_ephemeral_public, mlkem_ciphertext, share_duration} = req.body;
 
-    if (!name || !path || !file_size || !encrypted_file_key || !encrypted_manifest_key || !x25519_ephemeral_public || !mlkem_ciphertext 
+    if (!name || !path || !file_size || !encrypted_file_key || !x25519_ephemeral_public || !mlkem_ciphertext 
         || (share_duration === undefined || share_duration === null)) {
         res.status(400).json({ message: 'Missing parameters', success: false });
         return;
@@ -33,7 +33,6 @@ export async function startHybridUploadController(
             path, 
             file_size, 
             encrypted_file_key, 
-            encrypted_manifest_key,
             share_duration,
             x25519_ephemeral_public,
             mlkem_ciphertext

@@ -12,19 +12,16 @@ import {
   deriveKEK,
   hexToBuffer,
   decrypt,
-  decryptRSA,
   generateMasterKey,
   encrypt,
-  encryptRSA,
   deriveChunkKey,
   generateAsymKeyPair,
 } from "../../utils/crypto";
 import { concatUint8, gen_uuidv5 } from "../utils/funcs";
 import { sha256 } from "js-sha256";
-import { shareFile, shareFileHybrid } from "../components/ShareFileFeature/shareFile";
+import { shareFileHybrid } from "../components/ShareFileFeature/shareFile";
 import { fetchChunk } from "../components/DownloadFileFeature/downloadFile";
 import {
-  startUpload,
   startHybridUpload,
   handleChunkEncryption,
   uploadChunk,
@@ -46,14 +43,13 @@ let user_x25519_private: Uint8Array | null = null;
 
 type keysData = {
   encrypted_file_key: string;
-  encrypted_manifest_key: string;
   temp_decrypted_file_key: BufferSource | null;
 };
 
 const sessionFileKeys = new Map<string, keysData>();
 
 export const getManifestData = async (
-  file_id: string,
+  file_id: string, fileManifestKey: Uint8Array
 ): Promise<ManifestData> => {
   if (!userPrivateKey) {
     throw new Error("User private key not initialized");
@@ -63,23 +59,12 @@ export const getManifestData = async (
 
   const manifest_data = await fetchChunk(file_id, gen_uuidv5(manifest_name));
 
-  const wrapped_key = sessionFileKeys.get(file_id)?.encrypted_manifest_key;
-
-  if (!wrapped_key) {
-    throw new Error("Manifest key not found in session for file: " + file_id);
-  }
-
   const enc_manifest_nonce = manifest_data.slice(0, 12);
   const enc_manifest_ciphertext = manifest_data.slice(12);
 
-  const manifest_key = await decryptRSA(
-    hexToBuffer(wrapped_key) as BufferSource,
-    userPrivateKey,
-  );
-
   const manifest = await decrypt(
     enc_manifest_ciphertext,
-    manifest_key as BufferSource,
+    fileManifestKey as BufferSource,
     enc_manifest_nonce,
   );
 
@@ -230,10 +215,40 @@ const initializeUserKeys = async (username: string, password: string) => {
   console.log("MKLEM and X25519 user keys initialized in worker.");
 };
 
+const getUserHybridKeys = async (
+  recipient_username: string,
+): Promise<{ recipient_mlkem_public: Uint8Array; recipient_x25519_public: Uint8Array }> => {
+
+  const {recipient_mlkem_public, recipient_x25519_public} = await fetch(`${config.BACKENDURL}/users/keys/${recipient_username}/public_keys_bundle`,
+  {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  },
+  )
+  .then((res) => res.json())
+  .then((data) => {
+    if (!data.success) {
+      throw new Error("Failed to fetch recipient's public keys: " + data.message);
+    }
+    const fullKeysBuffer = new Uint8Array(
+      hexToBuffer(data.data.public_keys_bundle),
+    );
+    return {
+      recipient_mlkem_public: fullKeysBuffer.slice(0, 1184),
+      recipient_x25519_public: fullKeysBuffer.slice(1184),
+    };
+  });
+
+  return { recipient_mlkem_public, recipient_x25519_public };
+}
+
 const getXwingKeyForFile = async (file_id: string) => {
+
   if (!user_mlkem_private || !user_x25519_private || !user_x25519_public) {
     throw new Error("User keys not initialized");
   }
+  
   const { mlkem_ciphertext, x25519_ephemeral_public } = await fetch(
     `${config.BACKENDURL}/files/${file_id}/hybrid_info`,
     {
@@ -273,35 +288,7 @@ const getXwingKeyForFile = async (file_id: string) => {
   return xwing_key;
 };
 
-const getUserHybridKeys = async (
-  recipient_username: string,
-): Promise<{ recipient_mlkem_public: Uint8Array; recipient_x25519_public: Uint8Array }> => {
-
-  const {recipient_mlkem_public, recipient_x25519_public} = await fetch(`${config.BACKENDURL}/users/keys/${recipient_username}/public_keys_bundle`,
-  {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  },
-  )
-  .then((res) => res.json())
-  .then((data) => {
-    if (!data.success) {
-      throw new Error("Failed to fetch recipient's public keys: " + data.message);
-    }
-    const fullKeysBuffer = new Uint8Array(
-      hexToBuffer(data.data.public_keys_bundle),
-    );
-    return {
-      recipient_mlkem_public: fullKeysBuffer.slice(0, 1184),
-      recipient_x25519_public: fullKeysBuffer.slice(1184),
-    };
-  });
-
-  return { recipient_mlkem_public, recipient_x25519_public };
-}
-
-const getHybridSharedKey = async (
+const generateHybridSharedKey = async (
   recipient_mlkem_public: Uint8Array,
   recipient_x25519_public: Uint8Array,
 ) => {
@@ -363,6 +350,19 @@ const expandKeyForData = (key: Uint8Array) => {
   );
 
   return fileDataKey;
+}
+
+const expandKeyForManifest = (key: Uint8Array) => {
+
+  const usableKey = key instanceof Uint8Array ? key : new Uint8Array(key);
+  const manifestKey = hkdf(
+    sha3_256,
+    usableKey,
+    undefined,
+    new TextEncoder().encode("file-manifest-encryption"),
+    32
+  );
+  return manifestKey;
 }
 
 
@@ -497,9 +497,6 @@ globalThis.onmessage = async (e: MessageEvent) => {
       }
 
       case "GET_FILE_KEYS": {
-        if (!userPrivateKey) {
-          throw new Error("User private key not initialized");
-        }
 
         const user_file_keys = await fetch(
           `${config.BACKENDURL}/users/file-keys`,
@@ -512,23 +509,20 @@ globalThis.onmessage = async (e: MessageEvent) => {
           .then((res) => res.json())
           .then((data) => {
             if (!data.success) {
-              throw new Error("Failed to fetch user file keys");
+              throw new Error("Failed to fetch user file keys: " + data.message);
             }
             return data.data.fileKeysData as {
               file_id: string;
               encrypted_file_key: string;
-              encrypted_manifest_key: string;
             }[];
           });
 
         for (const {
           file_id,
           encrypted_file_key,
-          encrypted_manifest_key,
         } of user_file_keys) {
           sessionFileKeys.set(file_id, {
             encrypted_file_key,
-            encrypted_manifest_key,
             temp_decrypted_file_key: null,
           });
         }
@@ -537,9 +531,6 @@ globalThis.onmessage = async (e: MessageEvent) => {
       }
 
       case "GET_FILE_NAMES": {
-        if (!userPrivateKey) {
-          throw new Error("User private key not initialized");
-        }
 
         const files = payload.files as UserFile[];
 
@@ -582,7 +573,7 @@ globalThis.onmessage = async (e: MessageEvent) => {
             return { ...file, id: file.id, name: decryptedName };
           } catch (error) {
             console.error("Decryption failed for:", file.name, error);
-            return file;
+            return ({ id: file.id, name: "File data could not be recovered" });
           }
         });
 
@@ -602,14 +593,6 @@ globalThis.onmessage = async (e: MessageEvent) => {
           throw new Error("File size exceeds the 10 GB limit.");
         }
 
-        if (!userPrivateKey) {
-          throw new Error("User private key not initialized");
-        }
-
-        if (!userPublicKey) {
-          throw new Error("No public key found in session storage");
-        }
-
         if (!user_mlkem_public || !user_x25519_public) {
           throw new Error("User hybrid public keys not initialized");
         }
@@ -623,9 +606,10 @@ globalThis.onmessage = async (e: MessageEvent) => {
 
         const fileNameKey = expandKeyForName(_file_key);
         const fileDataKey = expandKeyForData(_file_key);
+        const fileManifestKey = expandKeyForManifest(_file_key);
 
         const { xwing_key, x25519_ephemeral_public, mlkem_ciphertext } =
-          await getHybridSharedKey(
+          await generateHybridSharedKey(
             user_mlkem_public,
             user_x25519_public,
           );
@@ -644,7 +628,6 @@ globalThis.onmessage = async (e: MessageEvent) => {
           selectedFile,
           file_id,
           enc_file_key,
-          userPublicKey,
           x25519_ephemeral_public,
           mlkem_ciphertext,
           share_duration,
@@ -685,19 +668,16 @@ globalThis.onmessage = async (e: MessageEvent) => {
         const {
           encrypted_manifest_buffer,
           manifest_uuid,
-          wrapped_manifest_key,
         } = await encryptManifest(
           file_id,
           manifest,
-          userPrivateKey,
-          userPublicKey,
+          fileManifestKey
         );
 
         await uploadChunk(encrypted_manifest_buffer, file_id, manifest_uuid);
 
         sessionFileKeys.set(file_id, {
           encrypted_file_key: enc_file_key,
-          encrypted_manifest_key: wrapped_manifest_key,
           temp_decrypted_file_key: null,
         });
 
@@ -706,8 +686,32 @@ globalThis.onmessage = async (e: MessageEvent) => {
       }
 
       case "GET_CHUNK_INFOS": {
+        
+        if (!user_mlkem_private || !user_x25519_private || !user_x25519_public) {
+          throw new Error("User keys not initialized");
+        }
+
         const file_id: string = payload.fileId;
-        const manifest_json = await getManifestData(file_id);
+
+        if (!sessionFileKeys.get(file_id)) {
+          throw new Error("File session data not found for file: " + file_id);
+        }
+        const encrypted_file_key = sessionFileKeys.get(file_id)?.encrypted_file_key;
+        if (!encrypted_file_key) {
+          throw new Error("File key not found in session for file: " + file_id);
+        }
+
+        const xwing_key = await getXwingKeyForFile(file_id) as BufferSource;
+
+        const file_key = await decrypt(
+          hexToBuffer(encrypted_file_key).slice(12),
+          xwing_key,
+          hexToBuffer(encrypted_file_key).slice(0, 12)
+        );
+
+        const fileManifestKey = expandKeyForManifest(file_key);
+
+        const manifest_json = await getManifestData(file_id, fileManifestKey);
         const file_size = manifest_json.file_size;
 
         result = { fileSize: file_size, chunks: manifest_json.chunkInfos };
@@ -715,9 +719,6 @@ globalThis.onmessage = async (e: MessageEvent) => {
       }
 
       case "GET_AND_DECRYPT_CHUNK": {
-        if (!userPrivateKey) {
-          throw new Error("User private key not initialized");
-        }
 
         if (!user_mlkem_private || !user_x25519_private || !user_x25519_public || !user_mlkem_public) {
           throw new Error("User keys not initialized");
@@ -794,9 +795,6 @@ globalThis.onmessage = async (e: MessageEvent) => {
       }
 
       case "SHARE_FILE": {
-        if (!userPrivateKey) {
-          throw new Error("User private key not initialized");
-        }
 
         if (!user_mlkem_private || !user_x25519_private || !user_x25519_public || !user_mlkem_public) {
           throw new Error("User keys not initialized");
@@ -809,21 +807,12 @@ globalThis.onmessage = async (e: MessageEvent) => {
         const { recipient_x25519_public, recipient_mlkem_public} = await getUserHybridKeys(recipient_username);
 
         const { xwing_key, x25519_ephemeral_public, mlkem_ciphertext } =
-          await getHybridSharedKey(
+          await generateHybridSharedKey(
             recipient_mlkem_public,
             recipient_x25519_public,
           );
 
         console.log("Xwing key generated for sharing");
-
-        const encrypted_manifest_key = sessionFileKeys.get(
-          payload.fileId,
-        )?.encrypted_manifest_key;
-        if (!encrypted_manifest_key) {
-          throw new Error(
-            "File session data not found for file: " + payload.fileId,
-          );
-        }
 
         const encrypted_file_key = sessionFileKeys.get(
           payload.fileId,
@@ -840,11 +829,9 @@ globalThis.onmessage = async (e: MessageEvent) => {
           file_id,
           recipient_username,
           encrypted_file_key,
-          encrypted_manifest_key,
           xwing_key,
           mlkem_ciphertext,
           x25519_ephemeral_public,
-          userPrivateKey,
           share_duration,
           xwing_personal
         );
@@ -857,6 +844,10 @@ globalThis.onmessage = async (e: MessageEvent) => {
       case "LOGOUT_USER": {
         userPrivateKey = null;
         userPublicKey = null;
+        user_mlkem_public = null;
+        user_mlkem_private = null;
+        user_x25519_public = null;
+        user_x25519_private = null;
         sessionFileKeys.clear();
 
         await fetch(`${config.BACKENDURL}/auth/logout`, {

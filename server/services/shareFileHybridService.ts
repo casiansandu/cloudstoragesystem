@@ -5,13 +5,11 @@ export async function shareFileHybridService(
   file_id: string,
   recipient_username: string,
   encrypted_file_key: string,
-  encrypted_manifest_key: string,
   share_period: number,
   mlkem_ciphertext: string,
   x25519_ephemeral_public: string
 ): Promise<string> {
   let result: { id: string };
-  console.log(share_period)
 
   const file_exists = await db.oneOrNone(`SELECT * FROM files WHERE id = $1`, [
     file_id,
@@ -40,10 +38,10 @@ export async function shareFileHybridService(
   }
   
   result = await db.one(
-      `INSERT INTO user_access (encrypted_file_key, file_id, user_id, encrypted_manifest_key, share_duration, mlkem_ciphertext, x25519_ephemeral_public)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO user_access (encrypted_file_key, file_id, user_id, share_duration, mlkem_ciphertext, x25519_ephemeral_public)
+                VALUES ($1, $2, $3, $4, $5, $6)
                 RETURNING access_id`,
-        [encrypted_file_key, file_id, recipient_id, encrypted_manifest_key, share_period, mlkem_ciphertext, x25519_ephemeral_public]
+        [encrypted_file_key, file_id, recipient_id, share_period, mlkem_ciphertext, x25519_ephemeral_public]
   );
   
 

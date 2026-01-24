@@ -72,19 +72,12 @@ export async function shareFileHybrid(
     file_id: string, 
     recipient_username: string, 
     encrypted_file_key: string, 
-    encrypted_manifest_key: string, 
     xwing_key: Uint8Array,
     mlkem_ciphertext: Uint8Array,
     x25519_ephemeral_public: Uint8Array,
-    userPrivateKey: CryptoKey,
     share_duration: number,
     xwing_personal: Uint8Array
 ) {
-    
-    const manifest_key = await decryptRSA(
-        hexToBuffer(encrypted_manifest_key) as BufferSource,
-        userPrivateKey
-    );
 
     const res = await fetch(`${config.BACKENDURL}/users/keys/${recipient_username}/public_key`, {
         method: "GET",
@@ -98,13 +91,6 @@ export async function shareFileHybrid(
     if (!data.success) {
         throw new Error(`Failed to fetch public key for user ${recipient_username}: ${data.message}`);
     }
-
-    const recipient_public_key = data.data.encryption_public_key;
-
-    const encrypted_manifest_key_for_recipient = await encryptRSA(
-        manifest_key as BufferSource,
-        hexToBuffer(recipient_public_key) as BufferSource
-    );
 
     const file_key = await decrypt(
       hexToBuffer(encrypted_file_key).slice(12),
@@ -126,7 +112,6 @@ export async function shareFileHybrid(
             file_id,
             recipient_username,
             encrypted_file_key: bufferToHex(concatUint8(encrypted_file_key_for_recipient.nonce, encrypted_file_key_for_recipient.ciphertext) as BufferSource),
-            encrypted_manifest_key: bufferToHex(encrypted_manifest_key_for_recipient as BufferSource),
             share_duration,
             mlkem_ciphertext: bufferToHex(mlkem_ciphertext as BufferSource),
             x25519_ephemeral_public: bufferToHex(x25519_ephemeral_public as BufferSource),

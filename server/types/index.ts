@@ -69,7 +69,6 @@ export interface StartFileUploadRequest extends AuthenticatedRequest {
     path: string;
     file_size: number;
     encrypted_file_key: string;
-    encrypted_manifest_key: string;
     share_duration: number;
   };
 };
@@ -80,7 +79,6 @@ export interface StartHybridFileUploadRequest extends AuthenticatedRequest {
     path: string;
     file_size: number;
     encrypted_file_key: string;
-    encrypted_manifest_key: string;
     x25519_ephemeral_public: string;
     mlkem_ciphertext: string;
     share_duration: number;
@@ -125,7 +123,6 @@ export interface ShareFileHybridRequest extends AuthenticatedRequest {
     file_id: string;
     recipient_username: string;
     encrypted_file_key: string;
-    encrypted_manifest_key: string;
     share_duration: number;
     mlkem_ciphertext: string;
     x25519_ephemeral_public?: string;
@@ -146,7 +143,6 @@ export type SrpCredentials = Omit<SrpUser, 'id' | 'created_at'>;
 export interface GetFileKeysResult {
   file_id: string;
   encrypted_file_key: string;
-  encrypted_manifest_key: string;
 }
 
 export type GetFileMasterKeyResult = Pick<GetFileKeysResult, 'encrypted_file_key'>;

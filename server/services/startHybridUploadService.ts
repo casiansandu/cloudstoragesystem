@@ -8,7 +8,6 @@ async function startHybridUploadService(
     path: string,
     file_size: number,
     encrypted_file_key: string,
-    wrapped_manifest_key: string,
     share_duration: number,
     x25519_ephemeral_public: string,
     mlkem_ciphertext: string
@@ -22,12 +21,11 @@ async function startHybridUploadService(
         );
 
         const access_id = await t.one(
-            'INSERT INTO user_access (encrypted_file_key, file_id, user_id, encrypted_manifest_key, share_duration, x25519_ephemeral_public, mlkem_ciphertext) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING access_id',
-            [encrypted_file_key, file_id.id, userId, wrapped_manifest_key, share_duration, x25519_ephemeral_public, mlkem_ciphertext]
+            'INSERT INTO user_access (encrypted_file_key, file_id, user_id, share_duration, x25519_ephemeral_public, mlkem_ciphertext) VALUES ($1, $2, $3, $4, $5, $6) RETURNING access_id',
+            [encrypted_file_key, file_id.id, userId, share_duration, x25519_ephemeral_public, mlkem_ciphertext]
         );
 
         const storagePath = getStoragePath(file_id.id);
-        //console.log("Creating storage path at ", storagePath);
 
         await fs.mkdir(storagePath, { recursive: true });
 

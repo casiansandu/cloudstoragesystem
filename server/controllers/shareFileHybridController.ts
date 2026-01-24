@@ -8,9 +8,9 @@ type FileRequestResult = {
 
 export async function shareFileHybridController(req: ShareFileHybridRequest, res: Response<ApiSuccessResponse<FileRequestResult> | ApiErrorResponse>): Promise<void> {
 
-    const { file_id, recipient_username, encrypted_file_key, encrypted_manifest_key, share_duration, mlkem_ciphertext, x25519_ephemeral_public } = req.body;
+    const { file_id, recipient_username, encrypted_file_key, share_duration, mlkem_ciphertext, x25519_ephemeral_public } = req.body;
 
-    if (!file_id || !recipient_username || !encrypted_file_key || !encrypted_manifest_key ||
+    if (!file_id || !recipient_username || !encrypted_file_key ||
          (share_duration === undefined || share_duration === null) || !mlkem_ciphertext || !x25519_ephemeral_public) {
         res.status(400).json({
             message: 'Missing required fields',
@@ -20,7 +20,7 @@ export async function shareFileHybridController(req: ShareFileHybridRequest, res
     }
 
     try {
-        const access_id = await shareFileHybridService(file_id, recipient_username, encrypted_file_key, encrypted_manifest_key, share_duration, mlkem_ciphertext, x25519_ephemeral_public);
+        const access_id = await shareFileHybridService(file_id, recipient_username, encrypted_file_key, share_duration, mlkem_ciphertext, x25519_ephemeral_public);
         res.status(200).json({
             message: 'File shared successfully',
             success: true,
