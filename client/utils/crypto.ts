@@ -82,10 +82,10 @@ export const generateAsymKeyPair = async (): Promise<{ publicKey: ArrayBuffer; p
 }
 
 
-export const deriveKEK = async (password: string, salt: BufferSource): Promise<CryptoKey> => {
+export const deriveKEK = async (password: Uint8Array, salt: BufferSource): Promise<CryptoKey> => {
   const passwordKey: CryptoKey = await subtle.importKey(
     "raw",
-    enc.encode(password),
+    password as BufferSource,
     { name: "PBKDF2" },
     false,
     ["deriveKey"]

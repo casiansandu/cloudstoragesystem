@@ -5,7 +5,7 @@ import { GetPublicKeyResult } from "../types";
 async function getPublicKeyService(id: string): Promise<GetPublicKeyResult> {
 
     const result: GetPublicKeyResult | null = await db.oneOrNone<GetPublicKeyResult>(
-        `SELECT encryption_public_key FROM srp_users WHERE id = $1`,
+        `SELECT user_rsa_public FROM srp_users WHERE id = $1`,
         [id]
     );
 

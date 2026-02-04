@@ -40,6 +40,12 @@ export interface UserFile {
   id: string;
   name: string;
 }
+
+export interface UserFolder {
+  id: string;
+  name: string;
+}
+
 export interface GetAllUserFilesResponse {
   message: string;
   data: {
@@ -63,9 +69,9 @@ export interface GetAllUsersResponse {
 export interface GetUserKeysResponse {
   message: string;
   data: {
-    encryption_salt: string;
-    encrypted_private_key: string;
-    encryption_public_key: string;
+    kdf_salt: string;
+    encrypted_user_rsa_private: string;
+    user_rsa_public: string;
     encryption_nonce: string;
   };
   success: boolean;

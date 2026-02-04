@@ -74,6 +74,18 @@ export const SrpLogin = () => {
       <button type="submit" className="btn btn-primary" disabled={isLoading}>
         {isLoading ? "Verifying..." : "Submit"}
       </button>
+      
+      <div className="mt-3">
+        <p>Don't have an account?</p>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => navigate("/register")}
+          disabled={isLoading}
+        >
+          Go to Register
+        </button>
+      </div>
     </form>
   );
 };

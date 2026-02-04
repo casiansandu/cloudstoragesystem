@@ -1,7 +1,7 @@
 import config from "../../config/config"
 import { useCallback, useEffect, useState, useRef } from "react";
 import UploadFileButton from "../components/UploadFileButton";
-import type { GetAllUserFilesResponse, UserFile } from "../utils/apiTypes";
+import type { GetAllUserFilesResponse, UserFile, UserFolder } from "../utils/apiTypes";
 import { LogoutButton } from "../components/LogoutButton";
 import { useNavigate } from "react-router-dom";
 import { verifyOwnership, hasAccess } from "../components/DownloadFileFeature/downloadFile";

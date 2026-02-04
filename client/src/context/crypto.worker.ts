@@ -9,7 +9,6 @@ import type {
 } from "../utils/apiTypes";
 import {
   bufferToHex,
-  deriveKEK,
   hexToBuffer,
   decrypt,
   generateMasterKey,
@@ -32,8 +31,10 @@ import { ml_kem768 } from "@noble/post-quantum/ml-kem.js";
 import { x25519 } from "@noble/curves/ed25519.js";
 import { sha3_256 } from "@noble/hashes/sha3.js";
 import { hkdf } from "@noble/hashes/hkdf.js";
-let userPrivateKey: CryptoKey | null = null;
-let userPublicKey: CryptoKey | null = null;
+import { scrypt, scryptAsync } from "@noble/hashes/scrypt.js";
+
+let user_rsa_private: CryptoKey | null = null;
+let user_rsa_public: CryptoKey | null = null;
 
 let user_mlkem_public: Uint8Array | null = null;
 let user_mlkem_private: Uint8Array | null = null;
@@ -51,7 +52,7 @@ const sessionFileKeys = new Map<string, keysData>();
 export const getManifestData = async (
   file_id: string, fileManifestKey: Uint8Array
 ): Promise<ManifestData> => {
-  if (!userPrivateKey) {
+  if (!user_rsa_private) {
     throw new Error("User private key not initialized");
   }
 
@@ -132,24 +133,25 @@ const initializeUserKeys = async (username: string, password: string) => {
       return data.data;
     });
 
-  const _kek = await deriveKEK(
-    password,
-    Uint8Array.from(hexToBuffer(user_keys_info.encryption_salt)),
+  const user_master_key = await scryptAsync(
+    new TextEncoder().encode(password), 
+    hexToBuffer(user_keys_info.kdf_salt),
+    { N: 16384, r: 8, p: 1, dkLen: 32 }
   );
 
   const private_key_data = new Uint8Array(
-    hexToBuffer(user_keys_info.encrypted_private_key),
+    hexToBuffer(user_keys_info.encrypted_user_rsa_private),
   );
   const private_key_nonce = private_key_data.slice(0, 12);
   const private_key_ciphertext = private_key_data.slice(12);
 
   const decryptedPrivateKey = await decrypt(
     private_key_ciphertext,
-    _kek,
+    user_master_key as BufferSource,
     private_key_nonce,
   );
 
-  userPrivateKey = await crypto.subtle.importKey(
+  user_rsa_private = await crypto.subtle.importKey(
     "pkcs8",
     decryptedPrivateKey as BufferSource,
     {
@@ -160,9 +162,9 @@ const initializeUserKeys = async (username: string, password: string) => {
     ["decrypt"],
   );
 
-  userPublicKey = await crypto.subtle.importKey(
+  user_rsa_public = await crypto.subtle.importKey(
     "spki",
-    hexToBuffer(user_keys_info.encryption_public_key) as BufferSource,
+    hexToBuffer(user_keys_info.user_rsa_public) as BufferSource,
     {
       name: "RSA-OAEP",
       hash: { name: "SHA-256" },
@@ -196,12 +198,11 @@ const initializeUserKeys = async (username: string, password: string) => {
       };
     });
 
-  if (!_kek) {
-    throw new Error("KEK not derived");
+  if (!user_master_key) {
+    throw new Error("User master key not derived");
   }
 
-  const decrypted_seed = await decrypt(enc_seed, _kek, enc_seed_nonce);
-
+  const decrypted_seed = await decrypt(enc_seed, user_master_key as BufferSource, enc_seed_nonce);
   console.log("Decrypted user seed");
 
   const ml_kem_keys = ml_kem768.keygen(decrypted_seed.slice(0, 64));
@@ -457,19 +458,23 @@ globalThis.onmessage = async (e: MessageEvent) => {
           ml_kem768.keygen(mlkem_seed);
         const x25519_public = x25519.getPublicKey(x25519_priv);
 
-        const encryptionSalt = crypto.getRandomValues(new Uint8Array(16));
-        //salt for KEK derivation
+        const kdf_salt = crypto.getRandomValues(new Uint8Array(16));
+        //salt for user master key derivation
 
-        const kek = await deriveKEK(password, encryptionSalt);
-        //key encryption key
+        const user_master_key = await scryptAsync(
+          new TextEncoder().encode(password),
+          kdf_salt,
+          { N: 16384, r: 8, p: 1, dkLen: 32 }
+        );
+        //derive better password with scrypt
 
-        const encrypted_seed = await encrypt(seed, kek);
-        //encrypt seed with kek
+        const encrypted_seed = await encrypt(seed, user_master_key as BufferSource);
+        //encrypt seed with user master key
 
-        const encryptedPrivateKey = await encrypt(privateKey, kek);
-        //encrypted private key with kek
+        const encryptedPrivateKey = await encrypt(privateKey, user_master_key as BufferSource);
+        //encrypted private key with user master key
 
-        //server stores enc_kek(a), A, encryption salt, and nonce
+        //server stores enc_{user_master_key}(a), A, encryption salt, and nonce
 
         console.log(
           bufferToHex(encrypted_seed.nonce as BufferSource),
@@ -481,7 +486,7 @@ globalThis.onmessage = async (e: MessageEvent) => {
           email,
           salt,
           verifier,
-          encryptionSalt,
+          kdf_salt,
           concatUint8(
             encryptedPrivateKey.nonce,
             encryptedPrivateKey.ciphertext,
@@ -536,11 +541,11 @@ globalThis.onmessage = async (e: MessageEvent) => {
 
         const decryptedFilesPromise = files.map(async (file) => {
           try {
-            const file_master_key = sessionFileKeys.get(
+            const file_key = sessionFileKeys.get(
               file.id,
             )?.encrypted_file_key;
 
-            if (!file_master_key) {
+            if (!file_key) {
               throw new Error(
                 "File master key not found in session for file: " + file.id,
               );
@@ -548,13 +553,13 @@ globalThis.onmessage = async (e: MessageEvent) => {
 
             const xwing_key = await getXwingKeyForFile(file.id);
 
-            const decrypted_file_master_key = (await decrypt(
-              hexToBuffer(file_master_key).slice(12),
+            const decrypted_file_key = (await decrypt(
+              hexToBuffer(file_key).slice(12),
               xwing_key as BufferSource,
-              hexToBuffer(file_master_key).slice(0, 12)
+              hexToBuffer(file_key).slice(0, 12)
             )) as BufferSource;
 
-            const fileNameKey = expandKeyForName(decrypted_file_master_key as Uint8Array);
+            const file_name_key = expandKeyForName(decrypted_file_key as Uint8Array);
 
             const enc_name_data = hexToBuffer(file.name);
             const nonce = enc_name_data.slice(0, 12);
@@ -562,7 +567,7 @@ globalThis.onmessage = async (e: MessageEvent) => {
 
             const decrypted_name_buffer = await decrypt(
               ciphertext,
-              fileNameKey as BufferSource,
+              file_name_key as BufferSource,
               nonce,
             );
 
@@ -842,8 +847,8 @@ globalThis.onmessage = async (e: MessageEvent) => {
       }
 
       case "LOGOUT_USER": {
-        userPrivateKey = null;
-        userPublicKey = null;
+        user_rsa_private = null;
+        user_rsa_public = null;
         user_mlkem_public = null;
         user_mlkem_private = null;
         user_x25519_public = null;

@@ -22,7 +22,7 @@ export async function getUserPublicKeyController(req: AuthenticatedRequest, res:
         res.status(200).json({ 
             message: 'Public key retrieved successfully',
             data: {
-                encryption_public_key: keys.encryption_public_key,
+                user_rsa_public: keys.user_rsa_public,
             }, 
             success: true });
         return;

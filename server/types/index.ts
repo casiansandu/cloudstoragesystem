@@ -19,9 +19,9 @@ export interface SrpUser {
   srp_salt: string;
   srp_verifier: string;
 
-  encryption_salt: string;
-  encryption_public_key: string;
-  encrypted_private_key: string;
+  kdf_salt: string;
+  user_rsa_public: string;
+  encrypted_user_rsa_private: string;
 
   public_keys_bundle: string;
   encrypted_seed: string;
@@ -133,8 +133,8 @@ export type UserPublic = Omit<User, 'password_hash'>;
 
 export type UserCreationResult = Pick<User, 'username' | 'email'>;
 
-export type GetKeysResult = Pick<SrpUser, 'encryption_salt' | 'encryption_public_key' | 'encrypted_private_key'>;
-export type GetPublicKeyResult = Pick<SrpUser, 'encryption_public_key'>;
+export type GetKeysResult = Pick<SrpUser, 'kdf_salt' | 'user_rsa_public' | 'encrypted_user_rsa_private'>;
+export type GetPublicKeyResult = Pick<SrpUser, 'user_rsa_public'>;
 export type GetPublicKeyBundleResult = Pick<SrpUser, 'public_keys_bundle'>;
 export type GetEncryptedSeedResult = Pick<SrpUser, 'encrypted_seed'>;
 export type GetManifestKeyResult = Pick<UserAccess, 'encrypted_manifest_key'>;

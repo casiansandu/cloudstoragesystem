@@ -7,9 +7,9 @@ export async function createSrpUserService(userData: SrpUserRegistration): Promi
     email,
     srp_salt,
     srp_verifier,
-    encryption_salt,
-    encrypted_private_key,
-    encryption_public_key,
+    kdf_salt,
+    encrypted_user_rsa_private,
+    user_rsa_public,
     public_keys_bundle,
     encrypted_seed
   } = userData;
@@ -33,10 +33,10 @@ export async function createSrpUserService(userData: SrpUserRegistration): Promi
   }
 
   await db.none(
-    'INSERT INTO srp_users(username, email, srp_salt, srp_verifier, encryption_salt, encryption_public_key, encrypted_private_key, public_keys_bundle, encrypted_seed) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+    'INSERT INTO srp_users(username, email, srp_salt, srp_verifier, kdf_salt, user_rsa_public, encrypted_user_rsa_private, public_keys_bundle, encrypted_seed) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)',
     [username, email, 
       srp_salt, srp_verifier, 
-      encryption_salt, encryption_public_key, encrypted_private_key,
+      kdf_salt, user_rsa_public, encrypted_user_rsa_private,
       public_keys_bundle, encrypted_seed]
   );
 
