@@ -42,6 +42,9 @@ let user_mlkem_private: Uint8Array | null = null;
 let user_x25519_public: Uint8Array | null = null;
 let user_x25519_private: Uint8Array | null = null;
 
+let current_folder_key: Uint8Array | null = null;
+let current_folder_id: string | null = null;
+
 type keysData = {
   encrypted_file_key: string;
   temp_decrypted_file_key: BufferSource | null;
@@ -117,7 +120,7 @@ const handleLastChunkAndManifest = async (
   }
 };
 
-const initializeUserKeys = async (username: string, password: string) => {
+const initializeUserData = async (username: string, password: string) => {
   const user_keys_info = await fetch(`${config.BACKENDURL}/users/keys`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
@@ -214,6 +217,20 @@ const initializeUserKeys = async (username: string, password: string) => {
   user_x25519_public = x25519.getPublicKey(user_x25519_private);
 
   console.log("MKLEM and X25519 user keys initialized in worker.");
+
+  const root_folder_key = hkdf(
+    sha3_256,
+    decrypted_seed,
+    undefined,//no salt needed since seed is already high entropy and unique per user
+    hexToBuffer("root-folder-key-v1") as BufferSource as Uint8Array,
+    32
+  );
+
+  current_folder_key = root_folder_key;
+  console.log("Derived and assigned root folder key for user.");
+
+  current_folder_id = await getRootFolderId();
+  console.log("Fetched root folder id");
 };
 
 const getUserHybridKeys = async (
@@ -366,6 +383,46 @@ const expandKeyForManifest = (key: Uint8Array) => {
   return manifestKey;
 }
 
+const createFolderForUser = async (user_id: string, encrypted_root_folder_key_data: Uint8Array, parent_folder_id: string | null, folder_name: string | null) => {
+  const res = await fetch(`${config.BACKENDURL}/folders/create`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      user_id,
+      encrypted_key_data: bufferToHex(encrypted_root_folder_key_data as BufferSource),
+      parent_folder_id,
+      folder_name,
+    }),
+  });
+
+  const data = await res.json();
+
+  if (!data.success) {
+    throw new Error("Failed to create root folder for user: " + data.data.message);
+  }
+
+  return data.data.id;
+}
+
+const getRootFolderId = async () => {
+
+  const res = await fetch(`${config.BACKENDURL}/folders/root/id`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+
+  const data = await res.json();
+
+  if (!data.success) {
+    throw new Error("Failed to fetch root folder id: " + data.message);
+  }
+
+  return data.data.root_folder_id;
+  
+}
+
 
 globalThis.onmessage = async (e: MessageEvent) => {
   const { id, type, payload } = e.data;
@@ -429,7 +486,7 @@ globalThis.onmessage = async (e: MessageEvent) => {
           verifyData.data.server_session_proof,
         );
 
-        await initializeUserKeys(username, password);
+        await initializeUserData(username, password);
 
         result = { success: true };
 
@@ -474,14 +531,20 @@ globalThis.onmessage = async (e: MessageEvent) => {
         const encryptedPrivateKey = await encrypt(privateKey, user_master_key as BufferSource);
         //encrypted private key with user master key
 
-        //server stores enc_{user_master_key}(a), A, encryption salt, and nonce
 
-        console.log(
-          bufferToHex(encrypted_seed.nonce as BufferSource),
-          bufferToHex(encrypted_seed.ciphertext as BufferSource),
+        const root_folder_key = hkdf(
+          sha3_256,
+          seed,
+          undefined,//no salt needed since seed is already high entropy and unique per user
+          hexToBuffer("root-folder-key-v1") as BufferSource as Uint8Array,
+          32
         );
+        //derive root folder key from seed with different context info
 
-        await post_register(
+        const encrypted_root_folder_key = await encrypt(root_folder_key as BufferSource, user_master_key as BufferSource);
+        //encrypt root folder key with user master key
+
+        const user_id = await post_register(
           username,
           email,
           salt,
@@ -492,9 +555,13 @@ globalThis.onmessage = async (e: MessageEvent) => {
             encryptedPrivateKey.ciphertext,
           ),
           new Uint8Array(publicKey),
-          concatUint8( mlkem_public, x25519_public),
+          concatUint8(mlkem_public, x25519_public),
           concatUint8(encrypted_seed.nonce, encrypted_seed.ciphertext),
         );
+
+        //root folder creation
+        await createFolderForUser(user_id, concatUint8(encrypted_root_folder_key.nonce, encrypted_root_folder_key.ciphertext), null, null);
+        console.log("Created root folder for user");
 
         result = { success: true };
 

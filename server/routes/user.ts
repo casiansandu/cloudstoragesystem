@@ -3,7 +3,7 @@ import { getAllUsersController } from '../controllers/getAllUsersController';
 import { getUserKeysController } from '../controllers/getUserKeysController';
 import { authMiddleware } from '../middleware/authMiddleware';
 import { getUserPublicKeyController } from '../controllers/getUserPublicKeyController';
-import getAllUserFileKeysController from '../controllers/getAllUserFileKeys';
+import { getAllUserFileKeysController } from '../controllers/getAllUserFileKeys';
 import { getUserPublicKeyBundleController } from '../controllers/getUserPublicKeyBundleController';
 import { getUserEncryptedSeedController } from '../controllers/getUserEncryptedSeedController';
 
@@ -15,6 +15,5 @@ router.get('/keys/:username/encrypted_seed', authMiddleware, getUserEncryptedSee
 router.get('/all', authMiddleware, getAllUsersController);  
 router.get('/keys', authMiddleware, getUserKeysController);
 router.get('/file-keys', authMiddleware, getAllUserFileKeysController);
-
 
 export default router;

@@ -5,6 +5,7 @@ import { PORT } from './config/config';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/user';
 import fileRoutes from './routes/file';
+import folderRoutes from './routes/folders';
 import https from 'https';
 import fs from 'fs';
 import path from 'path';
@@ -28,6 +29,7 @@ app.use(cookieParser());
 app.use('/auth', authRoutes);
 app.use('/users', userRoutes);
 app.use('/files', fileRoutes);
+app.use('/folders', folderRoutes);
 
 https.createServer(httpsOptions, app).listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

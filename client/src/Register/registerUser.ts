@@ -11,7 +11,7 @@ const post_register = async (
   encryptedPrivateKey: Uint8Array,
   publicKey: Uint8Array,
   public_keys_bundle: Uint8Array,
-  encrypted_seed: Uint8Array
+  encrypted_seed: Uint8Array,
 ) => {
   console.log("Registering user:", { username, email });
 
@@ -39,6 +39,8 @@ const post_register = async (
   if (!data.success) {
     throw new Error(`Registration failed: ${data.message}`);
   }
+
+  return data.data.user.id;
 };
 
 export default post_register;

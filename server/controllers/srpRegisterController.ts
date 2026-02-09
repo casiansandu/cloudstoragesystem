@@ -6,7 +6,7 @@ import { SrpRegisterRequest, ApiSuccessResponse, ApiErrorResponse } from '../typ
 interface RegisterSuccessData {
   user: {
     username: string;
-    email: string;
+    id: string;
   };
 }
 

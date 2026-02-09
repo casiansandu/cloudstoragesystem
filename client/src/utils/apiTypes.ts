@@ -104,7 +104,7 @@ export interface SrpRegisterResponse {
   data: {
     user: {
       username: string;
-      email: string;
+      id: string;
     };
   };
   success: boolean;

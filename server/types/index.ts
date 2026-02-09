@@ -131,7 +131,7 @@ export interface ShareFileHybridRequest extends AuthenticatedRequest {
 
 export type UserPublic = Omit<User, 'password_hash'>;
 
-export type UserCreationResult = Pick<User, 'username' | 'email'>;
+export type UserCreationResult = Pick<User, 'username' | 'id'>;
 
 export type GetKeysResult = Pick<SrpUser, 'kdf_salt' | 'user_rsa_public' | 'encrypted_user_rsa_private'>;
 export type GetPublicKeyResult = Pick<SrpUser, 'user_rsa_public'>;

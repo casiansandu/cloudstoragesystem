@@ -32,15 +32,15 @@ export async function createSrpUserService(userData: SrpUserRegistration): Promi
     throw new Error(`User with email ${email} already exists.`);
   }
 
-  await db.none(
-    'INSERT INTO srp_users(username, email, srp_salt, srp_verifier, kdf_salt, user_rsa_public, encrypted_user_rsa_private, public_keys_bundle, encrypted_seed) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+  const { id } = await db.one(
+    'INSERT INTO srp_users(username, email, srp_salt, srp_verifier, kdf_salt, user_rsa_public, encrypted_user_rsa_private, public_keys_bundle, encrypted_seed) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
     [username, email, 
       srp_salt, srp_verifier, 
       kdf_salt, user_rsa_public, encrypted_user_rsa_private,
       public_keys_bundle, encrypted_seed]
   );
 
-  return { username, email };
+  return { username, id };
 }
 
 export default createSrpUserService;

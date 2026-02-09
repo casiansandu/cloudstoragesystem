@@ -47,7 +47,6 @@ const getAuth = async (): Promise<boolean> => {
   }
 }
 
-
 export const Home = () => {
 
   const worker = useGlobalWorker();
@@ -55,6 +54,7 @@ export const Home = () => {
   const usernameShareRef = useRef<HTMLInputElement>(null);
   const shareDurationRef = useRef<HTMLInputElement>(null);
   
+  const [currentFolder, setCurrentFolder] = useState<UserFolder>({ id: "", name: "" });
   const [activeFile, setActiveFile] = useState<UserFile>({ id: "", name: "" });
   const [files, setFiles] = useState<UserFile[]>([]);
   const [authError, setAuthError] = useState<boolean>(false);
