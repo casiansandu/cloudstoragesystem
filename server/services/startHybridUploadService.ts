@@ -16,7 +16,7 @@ async function startHybridUploadService(
     return db.tx(async (t) => {
         
         const file_id = await t.one(
-            'INSERT INTO files (enc_name, owner_id, path, file_size) VALUES ($1, $2, $3, $4) RETURNING id',
+            'INSERT INTO files (encrypted_name_data, owner_id, path, file_size) VALUES ($1, $2, $3, $4) RETURNING id',
             [enc_name, userId, path, file_size]
         );
 

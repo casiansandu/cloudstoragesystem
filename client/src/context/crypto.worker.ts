@@ -279,7 +279,7 @@ const getXwingKeyForFile = async (file_id: string) => {
   );
 
   const xwing_key = sha3_256(concatUint8(
-    new TextEncoder().encode("\\./^\\"),
+    new TextEncoder().encode("\\.//^\\"),
     mlkem_shared_secret,
     x25519_shared_secret,
     x25519_ephemeral_public,
@@ -313,8 +313,8 @@ const generateHybridSharedKey = async (
   );
   
   const xwing_key = sha3_256(concatUint8(
-    new TextEncoder().encode("\\./^\\"),
-    mlkem_encapsulation_result.sharedSecret, 
+    new TextEncoder().encode("\\.//^\\"),
+    mlkem_encapsulation_result.sharedSecret,
     x25519_shared_secret, 
     x25519_ephemeral.publicKey,
     recipient_x25519_public
