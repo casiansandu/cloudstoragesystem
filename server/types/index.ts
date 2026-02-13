@@ -79,9 +79,10 @@ export interface StartHybridFileUploadRequest extends AuthenticatedRequest {
     path: string;
     file_size: number;
     encrypted_file_key: string;
-    x25519_ephemeral_public: string;
-    mlkem_ciphertext: string;
+    // x25519_ephemeral_public: string;
+    // mlkem_ciphertext: string;
     share_duration: number;
+    folder_id: string;
   };
 };
 

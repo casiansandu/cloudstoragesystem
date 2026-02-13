@@ -49,11 +49,26 @@ export const WorkerProvider = ({ children }: { children: React.ReactNode }) => {
     closeFile: (fileId) => 
       sendToWorker('CLOSE_FILE', { fileId }),
 
-    getFileKeys: () =>
-      sendToWorker('GET_FILE_KEYS', {}),
+    getFileDecryptedNameAndId: (files) =>
+      sendToWorker('GET_FILE_NAMES_AND_IDS', { files }),
 
-    getFileNames: (files) =>
-      sendToWorker('GET_FILE_NAMES', { files }),
+    getFolderDecryptedNameAndId: (folders) =>
+      sendToWorker('GET_FOLDER_NAMES_AND_IDS', { folders }),
+
+    getFilesInFolder: (folderId) =>
+      sendToWorker('GET_FILES_IN_FOLDER', { folderId }),
+
+    getFoldersInFolder: (folderId) =>
+      sendToWorker('GET_FOLDERS_IN_FOLDER', { folderId }),
+
+    createFolderForUser: ( name ) =>
+      sendToWorker('CREATE_FOLDER', { name }),
+
+    setCurrentFolder: (folderId) =>
+      sendToWorker('SET_CURRENT_FOLDER', { folderId }),
+
+    getCurrentFolderId: () =>
+      sendToWorker('GET_CURRENT_FOLDER_ID', {}),
 
     uploadFile: (file) =>
       sendToWorker('UPLOAD_FILE', { file }),

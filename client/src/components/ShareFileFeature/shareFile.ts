@@ -76,7 +76,7 @@ export async function shareFileHybrid(
     mlkem_ciphertext: Uint8Array,
     x25519_ephemeral_public: Uint8Array,
     share_duration: number,
-    xwing_personal: Uint8Array
+    current_folder_key: Uint8Array
 ) {
 
     const res = await fetch(`${config.BACKENDURL}/users/keys/${recipient_username}/public_key`, {
@@ -94,7 +94,7 @@ export async function shareFileHybrid(
 
     const file_key = await decrypt(
       hexToBuffer(encrypted_file_key).slice(12),
-      xwing_personal as BufferSource,
+      current_folder_key as BufferSource,
       hexToBuffer(encrypted_file_key).slice(0, 12)
     );
 

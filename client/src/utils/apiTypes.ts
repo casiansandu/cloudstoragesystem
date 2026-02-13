@@ -41,6 +41,23 @@ export interface UserFile {
   name: string;
 }
 
+export interface EncryptedUserFile {
+  id: string;
+  encrypted_name_data: string;
+  encrypted_key_data: string;
+}
+
+export interface EncryptedUserFileNoKey {
+  id: string;
+  encrypted_name_data: string;
+}
+
+export interface EncryptedUserFolder {
+  id: string;
+  encrypted_name_data: string;
+  encrypted_key_data: string;
+}
+
 export interface UserFolder {
   id: string;
   name: string;
@@ -51,6 +68,19 @@ export interface GetAllUserFilesResponse {
   data: {
     files: UserFile[];
   };
+  success: boolean;
+}
+
+export interface GetFilesInFolderResponse {
+  message: string;
+  data: EncryptedUserFile[];
+  success: boolean;
+}
+
+
+export interface GetFoldersInFolderResponse {
+  message: string;
+  data: EncryptedUserFolder[];
   success: boolean;
 }
 

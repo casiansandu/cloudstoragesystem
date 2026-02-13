@@ -2,18 +2,11 @@ import { Response } from 'express';
 import { getFolderKeyService } from '../../services/folders/getFolderKeyService';
 import { ApiErrorResponse, AuthenticatedRequest, ApiSuccessResponse } from '../../types';
 
-interface GetFolderKeyRequest extends AuthenticatedRequest {
-    body: {
-        user_id: string;
-        folder_id: string;
-    };
-}
-
 export async function getFolderKeyController(
-    req: GetFolderKeyRequest,
-    res: Response<ApiSuccessResponse<{ folder_key: string }> | ApiErrorResponse>
+    req: AuthenticatedRequest,
+    res: Response<ApiSuccessResponse<{ encrypted_key_data: string }> | ApiErrorResponse>
 ): Promise<void> {
-    const folder_id = req.body.folder_id;
+    const folder_id = req.params.folderId;
     const user_id = req.user?.id;
 
     if (!user_id || !folder_id) {
@@ -29,7 +22,7 @@ export async function getFolderKeyController(
 
         res.status(200).json({
             message: 'Folder key retrieved successfully',
-            data: { folder_key: folder_key.encrypted_key_data },
+            data: { encrypted_key_data: folder_key.encrypted_key_data },
             success: true
         });
     } catch (error) {
