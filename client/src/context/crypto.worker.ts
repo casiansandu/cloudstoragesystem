@@ -4,7 +4,6 @@ import type {
   SrpLoginStartResponse,
   SrpLoginVerifyResponse,
   GetUserKeysResponse,
-  UserFile,
   ManifestData,
   EncryptedUserFile,
   EncryptedUserFolder,

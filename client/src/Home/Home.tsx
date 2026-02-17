@@ -1,4 +1,4 @@
-import config from "../../config/config"
+import config from "../../config/config";
 import { useCallback, useEffect, useState, useRef } from "react";
 import UploadFileButton from "../components/UploadFileButton";
 import type { EncryptedUserFileNoKey, EncryptedUserFolder, UserFile, UserFolder } from "../utils/apiTypes";

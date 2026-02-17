@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { EncryptedUserFile, EncryptedUserFileNoKey, EncryptedUserFolder, GetFilesInFolderResponse, UserFile } from '../utils/apiTypes';
+import type { EncryptedUserFileNoKey, EncryptedUserFolder, UserFile } from '../utils/apiTypes';
 
 export type WorkerResponse = { id: string; type: 'SUCCESS' | 'ERROR'; result?: any; error?: string };
 export type PromiseHandlers = { resolve: (value: any) => void; reject: (reason?: any) => void };
