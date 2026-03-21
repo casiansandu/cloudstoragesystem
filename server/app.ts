@@ -1,14 +1,17 @@
 import express, { Application } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import { PORT } from './config/config';
-import authRoutes from './routes/auth';
-import userRoutes from './routes/user';
-import fileRoutes from './routes/file';
-import folderRoutes from './routes/folders';
+import { PORT } from './src/config/config';
+import authRoutes from './src/routes/auth';
+import userRoutes from './src/routes/user';
+import fileRoutes from './src/routes/file';
+import folderRoutes from './src/routes/folders';
 import https from 'https';
 import fs from 'fs';
 import path from 'path';
+import { drizzle } from 'drizzle-orm/node-postgres';
+
+const db = drizzle(process.env.DATABASE_URL!);
 
 const certPath = path.join(__dirname, 'certs', 'localhost.pem');
 const keyPath = path.join(__dirname, 'certs', 'localhost-key.pem');
