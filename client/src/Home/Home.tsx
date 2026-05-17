@@ -1,7 +1,7 @@
-import config from "../../config/config"
+import config from "../../config/config";
 import { useCallback, useEffect, useState, useRef } from "react";
 import UploadFileButton from "../components/UploadFileButton";
-import type { GetAllUserFilesResponse, UserFile, UserFolder } from "../utils/apiTypes";
+import type { EncryptedUserFileNoKey, EncryptedUserFolder, UserFile, UserFolder } from "../utils/apiTypes";
 import { LogoutButton } from "../components/LogoutButton";
 import { useNavigate } from "react-router-dom";
 import { verifyOwnership, hasAccess } from "../components/DownloadFileFeature/downloadFile";
@@ -11,24 +11,7 @@ import deleteFile from "../components/DeleteFileFeature/deleteFile";
 import SharePopup from "../components/SharePopup";
 import { useGlobalWorker } from "../context/WorkerContext";
 import streamSaver from "streamSaver";
-
-const getFiles = async () => {
-  try {
-    const res = await fetch(`${config.BACKENDURL}/files/all`, {
-      method: "GET",
-      credentials: "include"
-    });
-    const data: GetAllUserFilesResponse = await res.json();
-    if (!data.success) {
-      throw new Error(data.message);
-    }
-    console.log("Fetched files:", data.data);
-    return data;
-  } catch (error) {
-    console.error("Error fetching files:", error);
-    return;
-  }
-}
+import CreateFolderButton from "../components/CreateFolderButton";
 
 const getAuth = async (): Promise<boolean> => {
   try {
@@ -47,16 +30,19 @@ const getAuth = async (): Promise<boolean> => {
   }
 }
 
-
 export const Home = () => {
 
   const worker = useGlobalWorker();
 
   const usernameShareRef = useRef<HTMLInputElement>(null);
   const shareDurationRef = useRef<HTMLInputElement>(null);
+  const didInitRef = useRef(false);
   
+  const [currentFolderParent, setCurrentFolderParent] = useState<UserFolder>({ id: "", name: "" });
+  const [currentFolder, setCurrentFolder] = useState<UserFolder>({ id: "", name: "root" });
   const [activeFile, setActiveFile] = useState<UserFile>({ id: "", name: "" });
   const [files, setFiles] = useState<UserFile[]>([]);
+  const [folders, setFolders] = useState<UserFolder[]>([]);
   const [authError, setAuthError] = useState<boolean>(false);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [shareButtonPressed, setShareButtonPressed] = useState<boolean>(false);
@@ -64,43 +50,78 @@ export const Home = () => {
 
   const navigate = useNavigate();
 
-  const refreshFiles = useCallback(async () => {
+  const handleNavigateDown = async (folderId: string, folderName: string) => {
+    const nextFolder = { id: folderId, name: folderName };
+
+    await worker.setCurrentFolder(folderId);
+    
+    setCurrentFolderParent(currentFolder);
+    setCurrentFolder(nextFolder);
+    
+    await refreshFiles(folderId);
+}
+
+  const handleNavigateUp = async () => {
+    await worker.setCurrentFolder(currentFolderParent.id);
+
+    setCurrentFolder(currentFolderParent);
+    const parentResult = (await worker.getFolderParentIdAndName(currentFolderParent.id));
+    setCurrentFolderParent({ id: parentResult.parentId, name: parentResult.parentName });
+
+    await refreshFiles(currentFolderParent.id);
+  }
+
+  const refreshFiles = useCallback(async (folderId: string) => {
 
     try {
-      const data: GetAllUserFilesResponse | undefined = await getFiles();
-      if (!data) {
-        setFiles([]);
-        return;
+      const filesData: EncryptedUserFileNoKey[] = (await worker.getFilesInFolder(folderId)).files;
+      const decryptedFileNamesWithIds: UserFile[] = ((await worker.getFileDecryptedNamesAndIds(filesData)).files);
+
+      const parentResult = (await worker.getFolderParentIdAndName(folderId));
+      if (parentResult.parentId == "") {
+        const sharedFilesData: EncryptedUserFileNoKey[] = (await worker.getSharedFiles()).files;
+        if (sharedFilesData.length > 0) {
+          const decryptedSharedFileNamesWithIds: UserFile[] = ((await worker.getSharedFileDecryptedNamesAndIds(sharedFilesData)).files);
+          if (decryptedSharedFileNamesWithIds.length > 0) {
+            decryptedFileNamesWithIds.push(...decryptedSharedFileNamesWithIds);
+          }
+        }
       }
-      
-      if (!data.success) {
-        throw new Error(data.message);
-      }
+      setFiles(decryptedFileNamesWithIds);
 
-      const rawFiles = data.data.files;
+      const foldersData: EncryptedUserFolder[] = (await worker.getFoldersInFolder(folderId)).folders;
+      const decryptedFolderNamesWithIds: UserFolder[] = ((await worker.getFolderDecryptedNameAndId(foldersData)).folders);
 
-      const decryptedFiles = await worker.getFileNames(rawFiles);
-
-      const finalFiles = decryptedFiles.files;
-      setFiles(finalFiles);
-
+      setFolders(decryptedFolderNamesWithIds);
     } catch (error) {
       console.error("Error refreshing files:", error);
     }
-  }, []);
-
+  }, [worker]);
 
   useEffect(() => {
+
     let isMounted = true;
 
     const verifyAndLoad = async () => {
-      
       const isAuthenticated = await getAuth();
 
       if (!isMounted) return;
 
       if (isAuthenticated) {
-        refreshFiles();
+        try {
+          const rootFolderId = await worker.getCurrentFolderId();
+          if (!isMounted) return;
+
+          if (rootFolderId.folderId) {
+            console.log("Current folder ID on initial load:", rootFolderId.folderId);
+            setCurrentFolder({ id: rootFolderId.folderId, name: "root" });
+            refreshFiles(rootFolderId.folderId);
+          } else {
+            console.warn("No current folder ID found on initial load");
+          }
+        } catch (error) {
+          console.error("Error fetching current folder ID on initial load:", error);
+        }
       } else {
         setAuthError(true);
         navigate("/login");
@@ -110,7 +131,7 @@ export const Home = () => {
     verifyAndLoad();
 
     return () => { isMounted = false; };
-  }, [navigate]); // dependency
+  }, [navigate, refreshFiles, worker]); // dependency
 
   // Optional: Prevent the UI from flashing before redirect
   if (authError) return null;
@@ -159,17 +180,56 @@ export const Home = () => {
   };
 
   const handleDelete = async (file: UserFile) => {
+  if (!currentFolder.id) {
+      return alert("Current folder not loaded. Please log out and try again.");
+  }
+
   if (globalThis.confirm(`Are you sure you want to delete ${file.name}?`)) {
       try {
         await verifyOwnership(file.id);
         await deleteFile(file.id);
 
-        refreshFiles();
+        refreshFiles(currentFolder.id);
         handleClearSelection();
       } catch (error) {
         console.error("Error deleting file:", error);
         alert("Failed to delete file: " + (error as Error).message);
       }
+    }
+  };
+
+  const handleBulkDownload = async () => {
+    const filesToDownload = files.filter(f => selectedFiles.has(f.id));
+    for (const file of filesToDownload) {
+      try {
+        await handleDownload(file);
+      } catch (error) {
+        console.error("Error downloading file:", error);
+        alert("Failed to download file " + file.name + ": " + (error as Error).message);
+      }
+    }
+    handleClearSelection();
+  };
+
+  const handleBulkDelete = async () => {
+    if (!currentFolder.id) {
+      return alert("Current folder not loaded. Please log out and try again.");
+    }
+
+    if (globalThis.confirm(`Are you sure you want to delete ${selectedFiles.size} files?`)) {
+      const filesToDelete = files.filter(f => selectedFiles.has(f.id));
+      console.log("Deleting files:", filesToDelete);
+      for (const file of filesToDelete) {
+        try {
+          await verifyOwnership(file.id);
+          await deleteFile(file.id);
+        } catch (error) {
+          console.error("Error deleting file:", error);
+          alert(`Failed to delete file ${file.name}: ` + (error as Error).message);
+        }
+      }
+      refreshFiles(currentFolder.id);
+      handleClearSelection();
     }
   };
 
@@ -190,64 +250,37 @@ export const Home = () => {
       console.log(`Sharing file ${activeFile.id} to ${username}`);
 
       await worker.shareFile(activeFile.id, username, share_duration);
+      alert("File shared successfully.");
     } catch (error) {
       console.error("Error sharing file:", error);
       alert("Failed to share file: " + (error as Error).message);
     }
   };
 
-  const handleBulkDownload = async () => {
-    const filesToDownload = files.filter(f => selectedFiles.has(f.id));
-    for (const file of filesToDownload) {
-      try {
-        await handleDownload(file);
-      } catch (error) {
-        console.error("Error downloading file:", error);
-        alert("Failed to download file " + file.name + ": " + (error as Error).message);
-      }
-    }
-    handleClearSelection();
-  };
-
-  const handleBulkDelete = async () => {
-    if (globalThis.confirm(`Are you sure you want to delete ${selectedFiles.size} files?`)) {
-      const filesToDelete = files.filter(f => selectedFiles.has(f.id));
-      console.log("Deleting files:", filesToDelete);
-      for (const file of filesToDelete) {
-        try {
-          await verifyOwnership(file.id);
-          await deleteFile(file.id);
-        } catch (error) {
-          console.error("Error deleting file:", error);
-          alert(`Failed to delete file ${file.name}: ` + (error as Error).message);
-        }
-      }
-      refreshFiles();
-      handleClearSelection();
-    }
-  };
-
   const handleBulkShare = async () => {
-    const username = usernameShareRef.current?.value;
-    let share_duration = Number(shareDurationRef.current?.value);
-
-    if (share_duration < 0) {
-      return alert("Please enter a valid sharing period in days");
-    } else share_duration ??= 0;
-    if (!username) return alert("Please enter a username");
-
-    console.log(`Sharing ${selectedFiles.size} files to ${username}`);
     for (const fileId of selectedFiles) {
       try {
         await verifyOwnership(fileId);
 
+        const username = usernameShareRef.current?.value;
+        let share_duration = Number(shareDurationRef.current?.value);
+
+        if (share_duration < 0) {
+          return alert("Please enter a valid sharing period in days");
+        } else share_duration ??= 0;
+        if (!username) return alert("Please enter a username");
+
+        console.log(`Sharing ${selectedFiles.size} files to ${username}`);
+
         await worker.shareFile(fileId, username, share_duration);
+        alert("File shared successfully.");
       } catch (error) {
         console.error("Error sharing file:", error);
         alert("Failed to share file ID " + fileId + ": " + (error as Error).message);
       }
     }
     
+    alert("Files shared successfully.");
     handleClearSelection();
   };
 
@@ -257,12 +290,9 @@ export const Home = () => {
       <div style={{ position: 'absolute', top: '20px', right: '20px' }}>
         <LogoutButton />
       </div>
-      <h1>List of stored files</h1>
+      <h1>List of stored files {currentFolder.name ? `- ${currentFolder.name}` : ''}</h1>
       { authError ? (
         <p style={{ color: 'red' }}>Authentication error. Please log in again.</p>
-      ) :
-      files?.length === 0 ? (
-        <p>No files found.</p>
       ) : (
         <div>
           <FileActionsBar 
@@ -273,6 +303,18 @@ export const Home = () => {
             onClearSelection={handleClearSelection}
           />
           <div className="file-list">
+
+            {folders.map((folder) => (
+              <FileRow 
+                key={folder.id} 
+                file={{ id: folder.id, name: folder.name }} 
+                isFolder={true}
+                isSelected={false} 
+                onSelect={() => {}}
+                onNavigate={(id) => handleNavigateDown(id, folder.name)}
+              />
+            ))}
+
             {files.map((file) => (
               <FileRow 
                 key={file.id} 
@@ -284,6 +326,16 @@ export const Home = () => {
                 onDelete={handleDelete}
               />
             ))}
+            
+            {currentFolderParent.id && (
+                 <div className="file-row" onClick={() => handleNavigateUp()} style={{cursor: 'pointer'}}> 
+                    <div className="file-name" style={{ paddingLeft: '40px' }}>..</div>
+                 </div>
+            )}
+
+            {files?.length === 0 && folders?.length === 0 && (
+              <p>No files found.</p>
+            )}
           </div>
 
           <SharePopup triggered={shareButtonPressed} multiple={shareMultiple} onClose={() => setShareButtonPressed(false)}>
@@ -307,7 +359,10 @@ export const Home = () => {
 
         </div>
       )}
-      <UploadFileButton onUploadSuccess={refreshFiles} />
+      <div className="controls" style={{ display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'flex-start' }}>
+        <CreateFolderButton currentFolderId={currentFolder.id} onFolderCreated={() => refreshFiles(currentFolder.id)} />
+        <UploadFileButton onUploadSuccess={() => refreshFiles(currentFolder.id)} />
+      </div>
     </div>
   );
 }

@@ -49,11 +49,32 @@ export const WorkerProvider = ({ children }: { children: React.ReactNode }) => {
     closeFile: (fileId) => 
       sendToWorker('CLOSE_FILE', { fileId }),
 
-    getFileKeys: () =>
-      sendToWorker('GET_FILE_KEYS', {}),
+    getFileDecryptedNamesAndIds: (files) =>
+      sendToWorker('GET_DECRYPTED_FILE_NAMES_AND_IDS', { files }),
 
-    getFileNames: (files) =>
-      sendToWorker('GET_FILE_NAMES', { files }),
+    getSharedFileDecryptedNamesAndIds: (files) =>
+      sendToWorker('GET_DECRYPTED_SHARED_FILE_NAMES_AND_IDS', { files }),
+
+    getFolderDecryptedNameAndId: (folders) =>
+      sendToWorker('GET_FOLDER_NAMES_AND_IDS', { folders }),
+
+    getSharedFiles: () =>
+      sendToWorker('GET_SHARED_FILES', { files: [] }),
+
+    getFilesInFolder: (folderId) =>
+      sendToWorker('GET_FILES_IN_FOLDER', { folderId }),
+
+    getFoldersInFolder: (folderId) =>
+      sendToWorker('GET_FOLDERS_IN_FOLDER', { folderId }),
+
+    createFolderForUser: ( name ) =>
+      sendToWorker('CREATE_FOLDER', { name }),
+
+    setCurrentFolder: (folderId) =>
+      sendToWorker('SET_CURRENT_FOLDER', { folderId }),
+
+    getCurrentFolderId: () =>
+      sendToWorker('GET_CURRENT_FOLDER_ID', {}),
 
     uploadFile: (file) =>
       sendToWorker('UPLOAD_FILE', { file }),
@@ -69,9 +90,14 @@ export const WorkerProvider = ({ children }: { children: React.ReactNode }) => {
 
     registerUser: (username, email, password) =>
       sendToWorker('REGISTER_USER', { username, email, password}),
+    
+    getFolderParentIdAndName: (folderId) =>
+      sendToWorker('GET_FOLDER_PARENT_ID_AND_NAME', { folderId }),
 
     logoutUser: () =>
       sendToWorker('LOGOUT_USER', {}),
+
+
 
 
   }), [sendToWorker]);

@@ -22,10 +22,10 @@ export const SrpLogin = () => {
       const loginResult = await worker.fullLogin(username, password);
       if (!loginResult.success) {
         throw new Error("Login failed in worker");
-      }
-      const fileKeysResult = await worker.getFileKeys();
-      if (!fileKeysResult.success) {
-        throw new Error("Fetching file keys failed in worker");
+      // }
+      // const fileKeysResult = await worker.getFileKeys();
+      // if (!fileKeysResult.success) {
+      //   throw new Error("Fetching file keys failed in worker");
       }
       
       alert("Login successful");

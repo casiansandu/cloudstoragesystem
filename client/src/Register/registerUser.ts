@@ -11,7 +11,8 @@ const post_register = async (
   encryptedPrivateKey: Uint8Array,
   publicKey: Uint8Array,
   public_keys_bundle: Uint8Array,
-  encrypted_seed: Uint8Array
+  encrypted_seed: Uint8Array,
+  encrypted_ark: Uint8Array
 ) => {
   console.log("Registering user:", { username, email });
 
@@ -31,6 +32,7 @@ const post_register = async (
       encrypted_user_rsa_private: bufferToHex(encryptedPrivateKey as BufferSource),
       public_keys_bundle: bufferToHex(public_keys_bundle as BufferSource),
       encrypted_seed: bufferToHex(encrypted_seed as BufferSource),
+      encrypted_ark: bufferToHex(encrypted_ark as BufferSource),
     }),
   });
 
@@ -39,6 +41,8 @@ const post_register = async (
   if (!data.success) {
     throw new Error(`Registration failed: ${data.message}`);
   }
+
+  return data.data.user.id;
 };
 
 export default post_register;

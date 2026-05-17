@@ -21,12 +21,18 @@ export async function shareFile(
         credentials: "include"
     });
 
-    const data = await res.json();
+    const contentType = res.headers.get("content-type") || "";
+    const data = contentType.includes("application/json") ? await res.json() : null;
 
     console.log("Fetch public key response:", data);
 
-    if (!data.success) {
-        throw new Error(`Failed to fetch public key for user ${recipient_username}: ${data.message}`);
+    if (!res.ok) {
+        const message = data?.message ? String(data.message) : `HTTP ${res.status}`;
+        throw new Error(`Failed to fetch public key for user ${recipient_username}: ${message}`);
+    }
+
+    if (!data?.success) {
+        throw new Error(`Failed to fetch public key for user ${recipient_username}: ${data?.message || "unknown error"}`);
     }
 
     const recipient_public_key = data.data.encryption_public_key;
@@ -76,25 +82,31 @@ export async function shareFileHybrid(
     mlkem_ciphertext: Uint8Array,
     x25519_ephemeral_public: Uint8Array,
     share_duration: number,
-    xwing_personal: Uint8Array
+    current_folder_key: Uint8Array
 ) {
-
+    
     const res = await fetch(`${config.BACKENDURL}/users/keys/${recipient_username}/public_key`, {
         method: "GET",
         credentials: "include"
     });
 
-    const data = await res.json();
+    const contentType = res.headers.get("content-type") || "";
+    const data = contentType.includes("application/json") ? await res.json() : null;
 
-    console.log("Fetch public key response:", data);
+    console.log("Fetch public key response:", {message: data?.message, success: data?.success});
 
-    if (!data.success) {
-        throw new Error(`Failed to fetch public key for user ${recipient_username}: ${data.message}`);
+    if (!res.ok) {
+        const message = data?.message ? String(data.message) : `HTTP ${res.status}`;
+        throw new Error(`Failed to fetch public key for user ${recipient_username}: ${message}`);
+    }
+
+    if (!data?.success) {
+        throw new Error(`Failed to fetch public key for user ${recipient_username}: ${data?.message || "unknown error"}`);
     }
 
     const file_key = await decrypt(
       hexToBuffer(encrypted_file_key).slice(12),
-      xwing_personal as BufferSource,
+      current_folder_key as BufferSource,
       hexToBuffer(encrypted_file_key).slice(0, 12)
     );
 
@@ -121,6 +133,6 @@ export async function shareFileHybrid(
 
     const shareData = await shareRes.json();
 
-    console.log("Share file response:", shareData);
+    console.log("Share file response:", {message: shareData.message, success: shareData.success});
 
 }

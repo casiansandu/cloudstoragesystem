@@ -5,16 +5,22 @@ import './FileRow.css';
 interface FileRowProps {
   file: UserFile;
   isSelected: boolean;
+  isFolder?: boolean;
   onSelect: (id: string) => void;
-  onDownload: (file: UserFile) => void;
-  onDelete: (file: UserFile) => void;
-  onShare: (file: UserFile) => void;
+  onDownload?: (file: UserFile) => void;
+  onDelete?: (file: UserFile) => void;
+  onShare?: (file: UserFile) => void;
+  onNavigate?: (id: string) => void;
 }
 
-const FileRow = ({ file, isSelected, onSelect, onDownload, onShare, onDelete }: FileRowProps) => {
+const FileRow = ({ file, isSelected, isFolder, onSelect, onDownload, onShare, onDelete, onNavigate }: FileRowProps) => {
   
   const handleRowClick = () => {
-    onSelect(file.id);
+    if (isFolder && onNavigate) {
+      onNavigate(file.id);
+    } else {
+      onSelect(file.id);
+    }
   };
 
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {// Handled in onSelect directly
@@ -34,16 +40,19 @@ const FileRow = ({ file, isSelected, onSelect, onDownload, onShare, onDelete }: 
         />
       </div>
       <div className="file-name">
+        {isFolder ? '📁 ' : '📄 '}
         {file.name}
       </div>
       <div className="file-actions">
+        {!isFolder && (
         <MeatballMenu 
           actions={[
-            { label: 'Download', onClick: () => onDownload(file) },
-            { label: 'Delete', onClick: () => onDelete(file), variant: 'danger' },
-            { label: 'Share', onClick: () => onShare(file) }
+            { label: 'Download', onClick: () => onDownload?.(file) },
+            { label: 'Delete', onClick: () => onDelete?.(file), variant: 'danger' },
+            { label: 'Share', onClick: () => onShare?.(file) }
           ]} 
         />
+        )}
       </div>
     </div>
   );

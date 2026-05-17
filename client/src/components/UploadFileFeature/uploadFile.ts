@@ -33,12 +33,12 @@ export async function startHybridUpload(
   enc_file_name_data: EncryptedResult, 
   selectedFile: File, 
   file_id: string, 
-  enc_file_key: string, 
-  x25519_ephemeral_public: Uint8Array,
-  mlkem_ciphertext: Uint8Array,
-  share_duration: number) : Promise<string> {
+  enc_file_key: string,
+  share_duration: number,
+  folder_id: string
+) : Promise<string> {
 
-  await fetch(`${config.BACKENDURL}/files/upload/start_hybrid`, {
+  const res = await fetch(`${config.BACKENDURL}/files/upload/start_hybrid`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -50,29 +50,27 @@ export async function startHybridUpload(
           file_size: selectedFile.size,
           encrypted_file_key: enc_file_key,
           share_duration: share_duration,
-          x25519_ephemeral_public: bufferToHex(x25519_ephemeral_public as BufferSource),
-          mlkem_ciphertext: bufferToHex(mlkem_ciphertext as BufferSource)
+          folder_id: folder_id
       }),
       credentials: "include"
-  }).then(res => res.json()).then((data: FileUploadResponse) => {
-
-      file_id = data.data?.file_id?? "";
-      //const access_id = data.data?.access_id?? "";
-
-      if (!data.success) {
-          throw new Error("Failed to start upload: " + data.message);
-      }
-
-      if (!data.data?.file_id) {
-          throw new Error("No file ID returned from server" + data.message);
-      }
-
-      if (!data.data?.access_id) {
-          throw new Error("No access ID returned from server" + data.message);
-      }
-
-      
   });
+  const data: FileUploadResponse = await res.json();
+
+  file_id = data.data?.file_id?? "";
+  //const access_id = data.data?.access_id?? "";
+
+  if (!data.success) {
+      throw new Error("Failed to start upload: " + data.message);
+  }
+
+  if (!data.data?.file_id) {
+      throw new Error("No file ID returned from server" + data.message);
+  }
+
+  if (!data.data?.access_id) {
+      throw new Error("No access ID returned from server" + data.message);
+  }
+
   return file_id;
 }
 

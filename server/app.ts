@@ -1,10 +1,11 @@
 import express, { Application } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import { PORT } from './config/config';
-import authRoutes from './routes/auth';
-import userRoutes from './routes/user';
-import fileRoutes from './routes/file';
+import { PORT } from './src/config/config';
+import authRoutes from './src/routes/auth';
+import userRoutes from './src/routes/user';
+import fileRoutes from './src/routes/file';
+import folderRoutes from './src/routes/folders';
 import https from 'https';
 import fs from 'fs';
 import path from 'path';
@@ -28,6 +29,7 @@ app.use(cookieParser());
 app.use('/auth', authRoutes);
 app.use('/users', userRoutes);
 app.use('/files', fileRoutes);
+app.use('/folders', folderRoutes);
 
 https.createServer(httpsOptions, app).listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
