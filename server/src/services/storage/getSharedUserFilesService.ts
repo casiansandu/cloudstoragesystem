@@ -40,8 +40,6 @@ async function getSharedUserFilesService(
                     )
                 );
             
-                
-
             const to_return_rows = rows.map((file) => ({
                 id: file.id,
                 owner_id: file.owner_id,

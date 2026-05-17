@@ -53,7 +53,7 @@ export const WorkerProvider = ({ children }: { children: React.ReactNode }) => {
       sendToWorker('GET_DECRYPTED_FILE_NAMES_AND_IDS', { files }),
 
     getSharedFileDecryptedNamesAndIds: (files) =>
-      sendToWorker('GET_DECRYPTED_SHARED_FILE_NAMES_AND_IDS', { files }),
+      sendToWorker('GET_SHARED_FILE_DECRYPTED_NAMES_AND_IDS', { files }),
 
     getFolderDecryptedNameAndId: (folders) =>
       sendToWorker('GET_FOLDER_NAMES_AND_IDS', { folders }),

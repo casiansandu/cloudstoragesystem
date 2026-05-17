@@ -80,6 +80,7 @@ export const Home = () => {
       const parentResult = (await worker.getFolderParentIdAndName(folderId));
       if (parentResult.parentId == "") {
         const sharedFilesData: EncryptedUserFileNoKey[] = (await worker.getSharedFiles()).files;
+        console.log("Shared files data:", sharedFilesData);
         if (sharedFilesData.length > 0) {
           const decryptedSharedFileNamesWithIds: UserFile[] = ((await worker.getSharedFileDecryptedNamesAndIds(sharedFilesData)).files);
           if (decryptedSharedFileNamesWithIds.length > 0) {

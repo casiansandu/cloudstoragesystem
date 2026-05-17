@@ -135,4 +135,6 @@ export async function shareFileHybrid(
 
     console.log("Share file response:", {message: shareData.message, success: shareData.success});
 
+    return shareData;
+
 }

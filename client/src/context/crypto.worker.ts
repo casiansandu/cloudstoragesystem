@@ -668,6 +668,7 @@ globalThis.onmessage = async (e: MessageEvent) => {
       case "UPLOAD_FILE": {
 
         if (!current_folder_id || !current_folder_key) {
+          console.log(1, {current_folder_id, current_folder_key});
           throw new Error("Current folder data not initialized");
         }
 
@@ -1117,57 +1118,44 @@ globalThis.onmessage = async (e: MessageEvent) => {
           break;
         }
         const files = await Promise.all(raw_file_data.map(async (file) => {
-          const file_key_data_string = sessionFileKeys.get(file.id)?.encrypted_file_key;
-
-          if (file_key_data_string == undefined) {
-            throw new Error("File key data not found in session for file: " + file.id);
-          }
-          const file_key_data = hexToBuffer(file_key_data_string);
-          const file_key_nonce = file_key_data.slice(0, 12);
-          const file_key_ciphertext = file_key_data.slice(12);
-
-          let file_key: Uint8Array;
-          
-          
           try {
-            file_key = await decrypt(
+            const file_key_data_string = sessionFileKeys.get(file.id)?.encrypted_file_key;
+
+            if (file_key_data_string == undefined) {
+              throw new Error("File key data not found in session for file: " + file.id);
+            }
+            const file_key_data = hexToBuffer(file_key_data_string);
+            const file_key_nonce = file_key_data.slice(0, 12);
+            const file_key_ciphertext = file_key_data.slice(12);
+
+            const file_key = await decrypt(
               file_key_ciphertext,
               current_folder_key as BufferSource,
               file_key_nonce,
             );
-          }
-          catch (normal_error) {
-            console.warn(`Decryption of file key for normal file ${file.id} failed.`, {
-              normal_error,              });
-            throw new Error("Failed to decrypt file key for file: " + file.id);
-          }
-          
 
-          const enc_file_name_data = hexToBuffer(file.encrypted_name_data);
-          const enc_file_name_nonce = enc_file_name_data.slice(0, 12);
-          const enc_file_name_ciphertext = enc_file_name_data.slice(12);
+            const enc_file_name_data = hexToBuffer(file.encrypted_name_data);
+            const enc_file_name_nonce = enc_file_name_data.slice(0, 12);
+            const enc_file_name_ciphertext = enc_file_name_data.slice(12);
 
-          let file_name: string;
-          try {
-            file_name = new TextDecoder().decode(await decrypt(
+            const file_name = new TextDecoder().decode(await decrypt(
               enc_file_name_ciphertext,
               expandKeyForName(file_key) as BufferSource,
               enc_file_name_nonce,
             ));
 
+            return { id: file.id, name: file_name };
           } catch (error) {
             console.error("Error decrypting file name for file:", file.id, error);
-            file_name = "Decryption failed";
+            return { id: file.id, name: "Decryption failed" };
           }
-
-          return { id: file.id, name: file_name };
         }));
 
         result = { files };
         break;
       }
 
-      case "GET_DECRYPTED_SHARED_FILE_NAMES_AND_IDS": {
+      case "GET_SHARED_FILE_DECRYPTED_NAMES_AND_IDS": {
 
         let raw_file_data: EncryptedUserFileNoKey[] = payload.files;
 
@@ -1176,51 +1164,38 @@ globalThis.onmessage = async (e: MessageEvent) => {
           break;
         }
         const files = await Promise.all(raw_file_data.map(async (file) => {
-          const file_key_data_string = sessionFileKeys.get(file.id)?.encrypted_file_key;
-
-          if (file_key_data_string == undefined) {
-            throw new Error("File key data not found in session for file: " + file.id);
-          }
-          const file_key_data = hexToBuffer(file_key_data_string);
-          const file_key_nonce = file_key_data.slice(0, 12);
-          const file_key_ciphertext = file_key_data.slice(12);
-
-          let file_key: Uint8Array;
-          
-          const xwing_key = await getXwingKeyForFile(file.id);
           try {
-            file_key = await decrypt(
+            const file_key_data_string = sessionFileKeys.get(file.id)?.encrypted_file_key;
+
+            if (file_key_data_string == undefined) {
+              throw new Error("File key data not found in session for file: " + file.id);
+            }
+            const file_key_data = hexToBuffer(file_key_data_string);
+            const file_key_nonce = file_key_data.slice(0, 12);
+            const file_key_ciphertext = file_key_data.slice(12);
+
+            const xwing_key = await getXwingKeyForFile(file.id);
+            const file_key = await decrypt(
               file_key_ciphertext,
               xwing_key as BufferSource,
               file_key_nonce,
             );
-          }
-            catch (xwing_error) {
-              console.warn(`Decryption of file key for shared file ${file.id} with xwing key failed.`, {
-                xwing_error,
-              });
-              throw new Error("Failed to decrypt file key for shared file: " + file.id);
-            }
-          
 
-          const enc_file_name_data = hexToBuffer(file.encrypted_name_data);
-          const enc_file_name_nonce = enc_file_name_data.slice(0, 12);
-          const enc_file_name_ciphertext = enc_file_name_data.slice(12);
+            const enc_file_name_data = hexToBuffer(file.encrypted_name_data);
+            const enc_file_name_nonce = enc_file_name_data.slice(0, 12);
+            const enc_file_name_ciphertext = enc_file_name_data.slice(12);
 
-          let file_name: string;
-          try {
-            file_name = new TextDecoder().decode(await decrypt(
+            const file_name = new TextDecoder().decode(await decrypt(
               enc_file_name_ciphertext,
               expandKeyForName(file_key) as BufferSource,
               enc_file_name_nonce,
             ));
 
+            return { id: file.id, name: file_name };
           } catch (error) {
-            console.error("Error decrypting file name for file:", file.id, error);
-            file_name = "Decryption failed";
+            console.error("Error decrypting shared file name for file:", file.id, error);
+            return { id: file.id, name: "Decryption failed" };
           }
-
-          return { id: file.id, name: file_name };
         }));
 
         result = { files };
@@ -1269,7 +1244,6 @@ globalThis.onmessage = async (e: MessageEvent) => {
       }
 
       case "GET_SHARED_FILES": {
-        
 
         const files: EncryptedUserFileNoKey[] = await fetch(
           `${config.BACKENDURL}/files/shared`,
@@ -1355,10 +1329,7 @@ globalThis.onmessage = async (e: MessageEvent) => {
           );
         }
 
-        //const xwing_personal = await getXwingKeyForFile(file_id);
-
-
-        await shareFileHybrid(
+        const shareData = await shareFileHybrid(
           file_id,
           recipient_username,
           encrypted_file_key,
@@ -1369,6 +1340,10 @@ globalThis.onmessage = async (e: MessageEvent) => {
           current_folder_key as Uint8Array,
         );
 
+        if (!shareData.success) {
+          throw new Error("Failed to share file: " + shareData.message);
+        }
+
         result = { success: true };
         break;
 
@@ -1377,6 +1352,7 @@ globalThis.onmessage = async (e: MessageEvent) => {
       case "GET_CURRENT_FOLDER_ID": {
 
         if (!current_folder_id) {
+          console.log(2, {current_folder_id});
           throw new Error("Current folder data not initialized");
         }
 
