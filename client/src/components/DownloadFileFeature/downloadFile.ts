@@ -7,7 +7,7 @@ export const verifyOwnership = async (file_id: string) => {
     });
     const data = await res.json();
 
-    if (!data.success) {
+    if (!data.data.isOwner) {
       throw new Error("Ownership verification failed: " + data.message);
     }
 

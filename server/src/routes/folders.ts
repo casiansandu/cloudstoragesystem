@@ -5,7 +5,7 @@ import getFilesInfoByFolderController from '../controllers/files/getFilesInfoByF
 import authMiddleware from '../middleware/authMiddleware';
 import { getFoldersInfoByParentController } from '../controllers/folders/getFoldersInfoByParentController';
 import { checkRootFolderExistsController } from '../controllers/folders/checkRootFolderExists';
-import getFolderKeyController from '../controllers/folders/getFolderKeyController';
+import getFolderDataController from '../controllers/folders/getFolderDataController';
 
 
 
@@ -15,7 +15,7 @@ router.post('/create', authMiddleware, createFolderController);
 router.get('/root/id', authMiddleware, getRootFolderIdController);
 router.get('/root/exists', authMiddleware, checkRootFolderExistsController);
 
-router.get('/:folderId/key_data', authMiddleware, getFolderKeyController);
+router.get('/:folderId/data', authMiddleware, getFolderDataController);
 router.get('/:folderId/files', authMiddleware, getFilesInfoByFolderController);
 router.get('/:folderId/folders', authMiddleware, getFoldersInfoByParentController);
 

@@ -36,9 +36,10 @@ export const Home = () => {
 
   const usernameShareRef = useRef<HTMLInputElement>(null);
   const shareDurationRef = useRef<HTMLInputElement>(null);
+  const didInitRef = useRef(false);
   
   const [currentFolderParent, setCurrentFolderParent] = useState<UserFolder>({ id: "", name: "" });
-  const [currentFolder, setCurrentFolder] = useState<UserFolder>({ id: "", name: "" });
+  const [currentFolder, setCurrentFolder] = useState<UserFolder>({ id: "", name: "root" });
   const [activeFile, setActiveFile] = useState<UserFile>({ id: "", name: "" });
   const [files, setFiles] = useState<UserFile[]>([]);
   const [folders, setFolders] = useState<UserFolder[]>([]);
@@ -49,55 +50,78 @@ export const Home = () => {
 
   const navigate = useNavigate();
 
-  const handleNavigate = async (folderId: string, folderName: string) => {
-      await worker.setCurrentFolder(folderId);
-      setCurrentFolder({ id: folderId, name: folderName });
-      setCurrentFolderParent(currentFolder);
-      refreshFiles(folderId);
+  const handleNavigateDown = async (folderId: string, folderName: string) => {
+    const nextFolder = { id: folderId, name: folderName };
+
+    await worker.setCurrentFolder(folderId);
+    
+    setCurrentFolderParent(currentFolder);
+    setCurrentFolder(nextFolder);
+    
+    await refreshFiles(folderId);
+}
+
+  const handleNavigateUp = async () => {
+    await worker.setCurrentFolder(currentFolderParent.id);
+
+    setCurrentFolder(currentFolderParent);
+    const parentResult = (await worker.getFolderParentIdAndName(currentFolderParent.id));
+    setCurrentFolderParent({ id: parentResult.parentId, name: parentResult.parentName });
+
+    await refreshFiles(currentFolderParent.id);
   }
 
   const refreshFiles = useCallback(async (folderId: string) => {
 
     try {
-      
       const filesData: EncryptedUserFileNoKey[] = (await worker.getFilesInFolder(folderId)).files;
-      //console.log("Fetched file data:", filesData);
-      const decryptedFileNamesWithIds: UserFile[] = ((await worker.getFileDecryptedNameAndId(filesData)).files);
+      const decryptedFileNamesWithIds: UserFile[] = ((await worker.getFileDecryptedNamesAndIds(filesData)).files);
 
-      //const sharedFilesData: EncryptedUserFileNoKey[] = (await worker.getSharedFiles()).files;
-      //const decryptedSharedFileNamesWithIds: UserFile[] = ((await worker.getFileDecryptedNameAndId(sharedFilesData)).files);
-
+      const parentResult = (await worker.getFolderParentIdAndName(folderId));
+      if (parentResult.parentId == "") {
+        const sharedFilesData: EncryptedUserFileNoKey[] = (await worker.getSharedFiles()).files;
+        if (sharedFilesData.length > 0) {
+          const decryptedSharedFileNamesWithIds: UserFile[] = ((await worker.getSharedFileDecryptedNamesAndIds(sharedFilesData)).files);
+          if (decryptedSharedFileNamesWithIds.length > 0) {
+            decryptedFileNamesWithIds.push(...decryptedSharedFileNamesWithIds);
+          }
+        }
+      }
       setFiles(decryptedFileNamesWithIds);
 
-
-
       const foldersData: EncryptedUserFolder[] = (await worker.getFoldersInFolder(folderId)).folders;
-      //console.log("Fetched folder data:", foldersData);
       const decryptedFolderNamesWithIds: UserFolder[] = ((await worker.getFolderDecryptedNameAndId(foldersData)).folders);
 
       setFolders(decryptedFolderNamesWithIds);
-
-
     } catch (error) {
       console.error("Error refreshing files:", error);
     }
   }, [worker]);
 
-
   useEffect(() => {
+
     let isMounted = true;
 
     const verifyAndLoad = async () => {
-      
       const isAuthenticated = await getAuth();
 
       if (!isMounted) return;
 
       if (isAuthenticated) {
-        const currentFolderIdResult = (await worker.getCurrentFolderId()).folderId;
-        setCurrentFolder({ id: currentFolderIdResult, name: "" });
-        setCurrentFolderParent({ id: "", name: "" });
-        refreshFiles(currentFolderIdResult);
+        try {
+          const rootFolderId = await worker.getCurrentFolderId();
+          if (!isMounted) return;
+
+          if (rootFolderId.folderId) {
+            console.log("Current folder ID on initial load:", rootFolderId.folderId);
+            setCurrentFolder({ id: rootFolderId.folderId, name: "root" });
+            refreshFiles(rootFolderId.folderId);
+          } else {
+            console.warn("No current folder ID found on initial load");
+          }
+        } catch (error) {
+          console.error("Error fetching current folder ID on initial load:", error);
+        }
       } else {
         setAuthError(true);
         navigate("/login");
@@ -107,7 +131,7 @@ export const Home = () => {
     verifyAndLoad();
 
     return () => { isMounted = false; };
-  }, [navigate]); // dependency
+  }, [navigate, refreshFiles, worker]); // dependency
 
   // Optional: Prevent the UI from flashing before redirect
   if (authError) return null;
@@ -174,29 +198,6 @@ export const Home = () => {
     }
   };
 
-  const handleShare = async () => {
-
-    try {
-      await verifyOwnership(activeFile.id);
-
-      const username = usernameShareRef.current?.value;
-      let share_duration = Number(shareDurationRef.current?.value);
-
-      if (share_duration < 0) {
-        return alert("Please enter a valid sharing period in days");
-      } else share_duration ??= 0;
-
-      if (!username) return alert("Please enter a username");
-
-      console.log(`Sharing file ${activeFile.id} to ${username}`);
-
-      await worker.shareFile(activeFile.id, username, share_duration);
-    } catch (error) {
-      console.error("Error sharing file:", error);
-      alert("Failed to share file: " + (error as Error).message);
-    }
-  };
-
   const handleBulkDownload = async () => {
     const filesToDownload = files.filter(f => selectedFiles.has(f.id));
     for (const file of filesToDownload) {
@@ -232,27 +233,54 @@ export const Home = () => {
     }
   };
 
+  const handleShare = async () => {
+
+    try {
+      await verifyOwnership(activeFile.id);
+
+      const username = usernameShareRef.current?.value;
+      let share_duration = Number(shareDurationRef.current?.value);
+
+      if (share_duration < 0) {
+        return alert("Please enter a valid sharing period in days");
+      } else share_duration ??= 0;
+
+      if (!username) return alert("Please enter a username");
+
+      console.log(`Sharing file ${activeFile.id} to ${username}`);
+
+      await worker.shareFile(activeFile.id, username, share_duration);
+      alert("File shared successfully.");
+    } catch (error) {
+      console.error("Error sharing file:", error);
+      alert("Failed to share file: " + (error as Error).message);
+    }
+  };
+
   const handleBulkShare = async () => {
-    const username = usernameShareRef.current?.value;
-    let share_duration = Number(shareDurationRef.current?.value);
-
-    if (share_duration < 0) {
-      return alert("Please enter a valid sharing period in days");
-    } else share_duration ??= 0;
-    if (!username) return alert("Please enter a username");
-
-    console.log(`Sharing ${selectedFiles.size} files to ${username}`);
     for (const fileId of selectedFiles) {
       try {
         await verifyOwnership(fileId);
 
+        const username = usernameShareRef.current?.value;
+        let share_duration = Number(shareDurationRef.current?.value);
+
+        if (share_duration < 0) {
+          return alert("Please enter a valid sharing period in days");
+        } else share_duration ??= 0;
+        if (!username) return alert("Please enter a username");
+
+        console.log(`Sharing ${selectedFiles.size} files to ${username}`);
+
         await worker.shareFile(fileId, username, share_duration);
+        alert("File shared successfully.");
       } catch (error) {
         console.error("Error sharing file:", error);
         alert("Failed to share file ID " + fileId + ": " + (error as Error).message);
       }
     }
     
+    alert("Files shared successfully.");
     handleClearSelection();
   };
 
@@ -265,9 +293,6 @@ export const Home = () => {
       <h1>List of stored files {currentFolder.name ? `- ${currentFolder.name}` : ''}</h1>
       { authError ? (
         <p style={{ color: 'red' }}>Authentication error. Please log in again.</p>
-      ) :
-      files?.length === 0 && folders?.length === 0 ? (
-        <p>No files found.</p>
       ) : (
         <div>
           <FileActionsBar 
@@ -278,12 +303,6 @@ export const Home = () => {
             onClearSelection={handleClearSelection}
           />
           <div className="file-list">
-            
-            {currentFolderParent.id && (
-                 <div className="file-row" onClick={() => handleNavigate("", "")} style={{cursor: 'pointer'}}> 
-                    <div className="file-name" style={{ paddingLeft: '40px' }}>..</div>
-                 </div>
-            )}
 
             {folders.map((folder) => (
               <FileRow 
@@ -292,7 +311,7 @@ export const Home = () => {
                 isFolder={true}
                 isSelected={false} 
                 onSelect={() => {}}
-                onNavigate={(id) => handleNavigate(id, folder.name)}
+                onNavigate={(id) => handleNavigateDown(id, folder.name)}
               />
             ))}
 
@@ -307,6 +326,16 @@ export const Home = () => {
                 onDelete={handleDelete}
               />
             ))}
+            
+            {currentFolderParent.id && (
+                 <div className="file-row" onClick={() => handleNavigateUp()} style={{cursor: 'pointer'}}> 
+                    <div className="file-name" style={{ paddingLeft: '40px' }}>..</div>
+                 </div>
+            )}
+
+            {files?.length === 0 && folders?.length === 0 && (
+              <p>No files found.</p>
+            )}
           </div>
 
           <SharePopup triggered={shareButtonPressed} multiple={shareMultiple} onClose={() => setShareButtonPressed(false)}>

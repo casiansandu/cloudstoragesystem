@@ -9,9 +9,6 @@ import folderRoutes from './src/routes/folders';
 import https from 'https';
 import fs from 'fs';
 import path from 'path';
-import { drizzle } from 'drizzle-orm/node-postgres';
-
-const db = drizzle(process.env.DATABASE_URL!);
 
 const certPath = path.join(__dirname, 'certs', 'localhost.pem');
 const keyPath = path.join(__dirname, 'certs', 'localhost-key.pem');

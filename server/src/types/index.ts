@@ -1,42 +1,10 @@
 import { Request } from 'express';
-import { BufferSource } from 'stream/web';
+import type { InferSelectModel } from 'drizzle-orm';
+import { userAccess, users } from '../db/schema';
 
 // Database Models
-export interface User {
-  id: string;
-  username: string;
-  email: string;
-  password_hash: string;
-  created_at?: Date;
-}
-
-export interface SrpUser {
-  id: string;
-  username: string;
-  email: string;
-  created_at?: Date;
-
-  srp_salt: string;
-  srp_verifier: string;
-
-  kdf_salt: string;
-  user_rsa_public: string;
-  encrypted_user_rsa_private: string;
-
-  public_keys_bundle: string;
-  encrypted_seed: string;
-}
-
-export interface UserAccess {
-  encrypted_file_key: string;
-  file_id: string;
-  access_id: string;
-  user_id: string;
-  encrypted_manifest_key: string;
-  share_duration: number;
-  x25519_ephemeral_public: string;
-  mlkem_ciphertext: string;
-}
+export type User = InferSelectModel<typeof users>;
+export type UserAccess = InferSelectModel<typeof userAccess>;
 
 export interface Session {
   username: string;
@@ -45,11 +13,24 @@ export interface Session {
 }
 
 // API Request/Response Types using Utility Types
-export type UserRegistration = Omit<User, 'id' | 'password_hash' | 'created_at'> & {
+export interface UserRegistration {
+  username: string;
+  email: string;
   password: string;
-};
+}
 
-export type SrpUserRegistration = Omit<SrpUser, 'id' | 'created_at'>;
+export interface SrpUserRegistration {
+  username: string;
+  email: string;
+  srp_salt: string;
+  srp_verifier: string;
+  kdf_salt: string;
+  user_rsa_public: string;
+  encrypted_user_rsa_private: string;
+  public_keys_bundle: string;
+  encrypted_seed: string;
+  encrypted_ark: string;
+}
 
 export interface FinishFileUploadRequest extends AuthenticatedRequest {
   encyrpted_manifest: Uint8Array;
@@ -79,8 +60,6 @@ export interface StartHybridFileUploadRequest extends AuthenticatedRequest {
     path: string;
     file_size: number;
     encrypted_file_key: string;
-    // x25519_ephemeral_public: string;
-    // mlkem_ciphertext: string;
     share_duration: number;
     folder_id: string;
   };
@@ -90,7 +69,7 @@ export type UserLogin = Pick<User, 'username'> & {
   password: string;
 };
 
-export type SrpLoginStart = Pick<SrpUser, 'username' > & {
+export type SrpLoginStart = Pick<User, 'username' > & {
   client_public: string;
 };
 
@@ -107,7 +86,10 @@ export interface SrpLoginVerifyRequest extends Request {
   body: SrpLoginVerify;
 }
 
-export type HybridInfoResult = Pick<UserAccess, 'x25519_ephemeral_public' | 'mlkem_ciphertext'>;
+export interface HybridInfoResult {
+  x25519_ephemeral_public: string;
+  mlkem_ciphertext: string;
+}
 
 export interface ShareFileRequest extends AuthenticatedRequest {
   body: {
@@ -130,17 +112,37 @@ export interface ShareFileHybridRequest extends AuthenticatedRequest {
   };
 }
 
-export type UserPublic = Omit<User, 'password_hash'>;
+export type UserPublic = Omit<User, 'srpVerifier' | 'kdfSalt' | 'userRsaPublic' | 'encryptedUserRsaPrivate' | 'publicKeysBundle' | 'encryptedSeed' | 'encryptedArk'>;
 
 export type UserCreationResult = Pick<User, 'username' | 'id'>;
 
-export type GetKeysResult = Pick<SrpUser, 'kdf_salt' | 'user_rsa_public' | 'encrypted_user_rsa_private'>;
-export type GetPublicKeyResult = Pick<SrpUser, 'user_rsa_public'>;
-export type GetPublicKeyBundleResult = Pick<SrpUser, 'public_keys_bundle'>;
-export type GetEncryptedSeedResult = Pick<SrpUser, 'encrypted_seed'>;
-export type GetManifestKeyResult = Pick<UserAccess, 'encrypted_manifest_key'>;
+export interface GetKeysResult {
+  kdf_salt: string;
+  user_rsa_public: string;
+  encrypted_user_rsa_private: string;
+}
 
-export type SrpCredentials = Omit<SrpUser, 'id' | 'created_at'>;
+export interface GetPublicKeyResult {
+  user_rsa_public: string;
+}
+
+export interface GetPublicKeyBundleResult {
+  public_keys_bundle: string;
+}
+
+export interface GetEncryptedSeedResult {
+  encrypted_seed: string;
+}
+
+export interface GetEncryptedArkResult {
+  encrypted_ark: string;
+}
+
+export interface GetManifestKeyResult {
+  encrypted_manifest_key: string;
+}
+
+export type SrpCredentials = SrpUserRegistration;
 export interface GetFileKeysResult {
   file_id: string;
   encrypted_file_key: string;
@@ -187,7 +189,9 @@ export interface JwtPayload {
 //Get all file names
 export interface GetAllFilesData {
     files: Array<{
-        name: string;
+    id: string;
+        encrypted_name_data: string;
+    encrypted_file_key?: string;
     }>;
 }
 

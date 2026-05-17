@@ -25,6 +25,7 @@ export const users = pgTable("users", {
   encryptedUserRsaPrivate: text("encrypted_user_rsa_private").notNull(),
   publicKeysBundle: text("public_keys_bundle").notNull(),
   encryptedSeed: text("encrypted_seed").notNull(),
+  encryptedArk: text("encrypted_ark").notNull(),
 });
 
 // 2. FOLDERS

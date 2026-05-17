@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
-import config from '../config/config';
+import config from '../../config/config';
 
 const SALT = process.env.FOLDER_NAMING_SECRET || "default_unsafe_salt";
 

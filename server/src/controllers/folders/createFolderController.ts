@@ -1,4 +1,4 @@
-import {Response, Request} from 'express';
+import { Response } from 'express';
 import { ApiErrorResponse, AuthenticatedRequest, ApiSuccessResponse } from '../../types';
 import { createFolderService } from '../../services/folders/createFolderService';
 
@@ -17,9 +17,9 @@ function validateCreateFolderRequest(encrypted_key_data: string, parent_folder_i
         return 'Missing required fields: encrypted_key_data is required.';
     }
 
-    if ((!parent_folder_id && encrypted_folder_name_data) || (parent_folder_id && !encrypted_folder_name_data)) {
-        return 'Both parent_folder_id and encrypted_folder_name_data must be provided together.';
-    }
+    // if ((!parent_folder_id && encrypted_folder_name_data) || (parent_folder_id && !encrypted_folder_name_data)) {
+    //     return 'Both parent_folder_id and encrypted_folder_name_data must be provided together.';
+    // }
 
     return null;
 }

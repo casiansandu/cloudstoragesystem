@@ -15,7 +15,7 @@ export interface WorkerContextType {
 
   createFolderForUser: (name: string) => Promise<{ success: boolean, folderId: string }>;
 
-  getFileDecryptedNameAndId: (files: EncryptedUserFileNoKey[]) => Promise<{files: UserFile[]}>;
+  getFileDecryptedNamesAndIds: (files: EncryptedUserFileNoKey[]) => Promise<{files: UserFile[]}>;
   getFilesInFolder: (folderId: string) => Promise<{ files: EncryptedUserFileNoKey[] }>;
 
   getFoldersInFolder: (folderId: string) => Promise<{ folders: EncryptedUserFolder[] }>;
@@ -24,10 +24,15 @@ export interface WorkerContextType {
   setCurrentFolder: (folderId: string) => Promise<{ success: boolean }>;
   getCurrentFolderId: () => Promise<{ folderId: string }>;
 
+  getFolderParentIdAndName: (folderId: string) => Promise<{ parentId: string, parentName: string }>;
+
   decryptChunk: (fileId: string, chunkId: string, chunkIndex: number) => Promise<{ decryptedChunk: Uint8Array}>;
   shareFile: (fileId: string, recipientUsername: string, share_duration: number) => Promise<{ success: boolean }>;
   registerUser: (username: string, email: string, password: string) => Promise<{ success: boolean }>;
   logoutUser: () => Promise<{ success: boolean }>;
+
+  getSharedFiles: () => Promise<{ files: EncryptedUserFileNoKey[] }>;
+  getSharedFileDecryptedNamesAndIds: (files: EncryptedUserFileNoKey[]) => Promise<{ files: UserFile[] }>;
 }
 export const WorkerContext = createContext<WorkerContextType | null>(null);
 

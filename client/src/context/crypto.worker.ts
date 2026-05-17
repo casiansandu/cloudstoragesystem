@@ -48,6 +48,8 @@ let current_folder_key: Uint8Array | null = null;
 let current_folder_id: string | null = null;
 let current_folder_parent_id: string | null = null;
 
+let user_ark: Uint8Array | null = null;
+
 type keysData = {
   encrypted_file_key: string;
   temp_decrypted_file_key: BufferSource | null;
@@ -134,7 +136,7 @@ const initializeUserData = async (username: string, password: string) => {
       if (!data.success) {
         throw new Error(data.message);
       }
-      console.log("Fetched user keys:", data);
+      console.log("Fetched user keys");
 
       return data.data;
     });
@@ -181,6 +183,39 @@ const initializeUserData = async (username: string, password: string) => {
 
   console.log("RSA user keys initialized in worker.");
 
+  if (!user_master_key) {
+    throw new Error("User master key not derived");
+  }
+
+  const { nonce: enc_ark_nonce, enc_ark } = await fetch(
+    `${config.BACKENDURL}/users/keys/${username}/encrypted_ark`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    },
+  )
+    .then((res) => res.json())
+    .then((data) => {
+      if (!data.success) {
+        throw new Error("Failed to fetch user's encrypted ark");
+      }
+      const fullArkBuffer = new Uint8Array(
+        hexToBuffer(data.data.encrypted_ark),
+      );
+
+      return {
+        nonce: fullArkBuffer.slice(0, 12),
+        enc_ark: fullArkBuffer.slice(12),
+      };
+    });
+  
+  user_ark = await decrypt(
+    enc_ark, 
+    user_master_key as BufferSource, 
+    enc_ark_nonce
+  );
+
   const { nonce: enc_seed_nonce, enc_seed } = await fetch(
     `${config.BACKENDURL}/users/keys/${username}/encrypted_seed`,
     {
@@ -204,10 +239,6 @@ const initializeUserData = async (username: string, password: string) => {
       };
     });
 
-  if (!user_master_key) {
-    throw new Error("User master key not derived");
-  }
-
   const decrypted_seed = await decrypt(enc_seed, user_master_key as BufferSource, enc_seed_nonce);
   console.log("Decrypted user seed");
 
@@ -222,13 +253,14 @@ const initializeUserData = async (username: string, password: string) => {
   console.log("MKLEM and X25519 user keys initialized in worker.");
 
 
-  const root_folder_key = hkdf(
-    sha3_256,
-    decrypted_seed,
-    undefined,//no salt needed since seed is already high entropy and unique per user
-    hexToBuffer("root-folder-key-v1") as BufferSource as Uint8Array,
-    32
-  );
+  // const root_folder_key = hkdf(
+  //   sha3_256,
+  //   decrypted_seed,
+  //   undefined,//no salt needed since seed is already high entropy and unique per user
+  //   hexToBuffer("root-folder-key-v1") as BufferSource as Uint8Array,
+  //   32
+  // ); old
+
 
   const hasRootFolder = await fetch(`${config.BACKENDURL}/folders/root/exists`, {
     method: "GET",
@@ -237,17 +269,50 @@ const initializeUserData = async (username: string, password: string) => {
   })
   .then(res => res.json());
 
+  let root_folder_key: Uint8Array;
+
   if (!hasRootFolder.success) {
     throw new Error("Failed to check for root folder existence: " + hasRootFolder.message);
   }
+  console.log("Root folder existence check:", hasRootFolder.data.id);
+  if (hasRootFolder.data.exists) {
+    const { nonce: root_folder_key_nonce, root_folder_key_ciphertext } = await fetch(
+      `${config.BACKENDURL}/folders/${hasRootFolder.data.id}/data`,
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      }
+    ).then((res) => res.json())
+      .then((data) => {
+        if (!data.success) {
+          throw new Error("Failed to fetch users' root folder key data: " + data.message);
+        }
+        const fullKeyData = new Uint8Array(
+          hexToBuffer(data.data.encrypted_key_data),
+        );
 
-  if (!hasRootFolder.data.exists) {
+        return {
+          nonce: fullKeyData.slice(0, 12),
+          root_folder_key_ciphertext: fullKeyData.slice(12),
+        };
+    });
+
+    root_folder_key = await decrypt(
+      root_folder_key_ciphertext,
+      user_ark as BufferSource,
+      root_folder_key_nonce,
+    );
+  } else {
     console.log("No root folder found for user, creating one...");
-    const encrypted_root_folder_key = await encrypt(root_folder_key as BufferSource, user_master_key as BufferSource);
+    root_folder_key = await generateMasterKey() as Uint8Array;
+    const encrypted_name_data = await encrypt(new TextEncoder().encode("root") as BufferSource, root_folder_key as BufferSource);
+    // const encrypted_root_folder_key = await encrypt(root_folder_key as BufferSource, user_master_key as BufferSource);
+    const encrypted_root_folder_key = await encrypt(root_folder_key as BufferSource, user_ark as BufferSource);
     await createFolderForUser(
       concatUint8(encrypted_root_folder_key.nonce, encrypted_root_folder_key.ciphertext),
       null,
-      null
+      concatUint8(encrypted_name_data.nonce, encrypted_name_data.ciphertext)
     );
     console.log("Created root folder for user");
   }
@@ -303,7 +368,6 @@ const getXwingKeyForFile = async (file_id: string) => {
   )
     .then((res) => res.json())
     .then((data) => {
-      console.log(data)
       if (!data.success) {
         throw new Error("Failed to fetch hybrid key data for file");
       }
@@ -423,8 +487,8 @@ const createFolderForUser = async (encrypted_folder_key_data: Uint8Array, parent
       encrypted_folder_name_data: bufferToHex(encrypted_folder_name_data as BufferSource),
     }),
   });
-
   const data = await res.json();
+  console.log("Create folder response:", {message: data.data.message, success: data.success});
 
   if (!data.success) {
     throw new Error("Failed to create folder for user: " + data.data.message);
@@ -535,6 +599,7 @@ globalThis.onmessage = async (e: MessageEvent) => {
         //A, a
 
         const seed = crypto.getRandomValues(new Uint8Array(96));
+        const ark = crypto.getRandomValues(new Uint8Array(32));
 
         const mlkem_seed = seed.slice(0, 64); // first 64 bytes
         const x25519_priv = seed.slice(64); // last 32 bytes
@@ -555,6 +620,9 @@ globalThis.onmessage = async (e: MessageEvent) => {
 
         const encrypted_seed = await encrypt(seed, user_master_key as BufferSource);
         //encrypt seed with user master key
+
+        const encrypted_ark = await encrypt(ark, user_master_key as BufferSource);
+        //encrypt ark with user master key
 
         const encryptedPrivateKey = await encrypt(privateKey, user_master_key as BufferSource);
         //encrypted private key with user master key
@@ -585,6 +653,7 @@ globalThis.onmessage = async (e: MessageEvent) => {
           new Uint8Array(publicKey),
           concatUint8(mlkem_public, x25519_public),
           concatUint8(encrypted_seed.nonce, encrypted_seed.ciphertext),
+          concatUint8(encrypted_ark.nonce, encrypted_ark.ciphertext),
         );
 
         //root folder creation
@@ -722,19 +791,33 @@ globalThis.onmessage = async (e: MessageEvent) => {
           throw new Error("File key not found in session for file: " + file_id);
         }
 
-        // const xwing_key = await getXwingKeyForFile(file_id) as BufferSource;
+        let file_key: Uint8Array;
 
-        // const file_key = await decrypt(
-        //   hexToBuffer(encrypted_file_key).slice(12),
-        //   xwing_key,
-        //   hexToBuffer(encrypted_file_key).slice(0, 12)
-        // );
-
-        const file_key = await decrypt(
-          hexToBuffer(encrypted_file_key).slice(12),
-          current_folder_key as BufferSource,
-          hexToBuffer(encrypted_file_key).slice(0, 12)
-        );
+        const enc_file_key_data = hexToBuffer(encrypted_file_key);
+        const file_key_nonce = enc_file_key_data.slice(0, 12);
+        const file_key_ciphertext = enc_file_key_data.slice(12);
+        try {
+          file_key = await decrypt(
+            file_key_ciphertext,
+            current_folder_key as BufferSource,
+            file_key_nonce,
+          );
+        } catch (normal_error) {
+          try {
+            const xwing_key = await getXwingKeyForFile(file_id);
+            file_key = await decrypt(
+              file_key_ciphertext,
+              xwing_key as BufferSource,
+              file_key_nonce,
+            );
+          } catch (xwing_error) {
+            console.warn(`Decryption of file key for file ${file_id} failed.`, {
+              normal_error,
+              xwing_error,
+            });
+            throw new Error("Failed to decrypt file key for file: " + file_id);
+          }
+        }
         const fileManifestKey = expandKeyForManifest(file_key);
 
         const manifest_json = await getManifestData(file_id, fileManifestKey);
@@ -769,33 +852,43 @@ globalThis.onmessage = async (e: MessageEvent) => {
           );
         }
 
-        let file_master_key =
+        let file_key =
           sessionFileKeys.get(file_id)!.temp_decrypted_file_key;
 
-        if (!file_master_key) {
+        if (!file_key) {
           const enc_file_key_data = hexToBuffer(file_master_key_encrypted);
           const enc_file_key_nonce = enc_file_key_data.slice(0, 12);
           const enc_file_key_ciphertext = enc_file_key_data.slice(12);
 
-          // const xwing_key = await getXwingKeyForFile(file_id);
-
-          // file_master_key = expandKeyForData(await decrypt(
-          //   enc_file_key_ciphertext,
-          //   xwing_key as BufferSource,
-          //   enc_file_key_nonce,
-          // )) as BufferSource;
-          file_master_key = expandKeyForData(await decrypt(
-            enc_file_key_ciphertext,
-            current_folder_key as BufferSource,
-            enc_file_key_nonce,
-          )) as BufferSource;
-
+          try {
+            file_key = expandKeyForData(await decrypt(
+              enc_file_key_ciphertext,
+              current_folder_key as BufferSource,
+              enc_file_key_nonce,
+            )) as BufferSource;
+          }
+          catch (normal_error) {
+            try {
+              const xwing_key = await getXwingKeyForFile(file_id);
+              file_key = expandKeyForData(await decrypt(
+                enc_file_key_ciphertext,
+                xwing_key as BufferSource,
+                enc_file_key_nonce,
+              )) as BufferSource;
+            } catch (xwing_error) {
+              console.warn(`Decryption of file key for file ${file_id} failed.`, {
+                normal_error, xwing_error,
+              });
+              throw new Error("Failed to decrypt file key for file: " + file_id);
+            }
+          }
+          
           sessionFileKeys.get(file_id)!.temp_decrypted_file_key =
-             file_master_key;
+             file_key;
         }
 
         const chunk_key = await deriveChunkKey(
-          file_master_key,
+          file_key,
           chunk_index,
           file_id,
         );
@@ -838,7 +931,7 @@ globalThis.onmessage = async (e: MessageEvent) => {
         current_folder_id = folder_id;
 
         const res = await fetch(
-          `${config.BACKENDURL}/folders/${folder_id}/key_data`,
+          `${config.BACKENDURL}/folders/${folder_id}/data`,
           {
             method: "GET",
             headers: { "Content-Type": "application/json" },
@@ -850,8 +943,6 @@ globalThis.onmessage = async (e: MessageEvent) => {
         if (!data.success) {
           throw new Error("Failed to fetch folder key data: " + data.message);
         }
-        console.log("Fetched folder key data for folder id " + folder_id);
-        console.log(data.data);
 
         const enc_folder_key_data = hexToBuffer(data.data.encrypted_key_data);
         const enc_folder_key_nonce = enc_folder_key_data.slice(0, 12);
@@ -859,12 +950,88 @@ globalThis.onmessage = async (e: MessageEvent) => {
 
         current_folder_key = await decrypt(
           enc_folder_key_ciphertext,
-          current_folder_key as BufferSource,
+          user_ark as BufferSource,
           enc_folder_key_nonce,
         );
 
 
         result = { success: true };
+        break;
+      }
+
+      case "GET_FOLDER_PARENT_ID_AND_NAME": {
+
+        const folder_id: string = payload.folderId;
+
+        if (!current_folder_key) {
+          throw new Error("Current folder key not initialized");
+        }
+
+        const root_folder_id = await getRootFolderId();
+        if (folder_id === root_folder_id) {
+          result = { parentId: "", parentName: "root" };
+          break;
+        }
+
+        let parent_folder_key: Uint8Array;
+
+        const { parent_id } = await fetch(
+          `${config.BACKENDURL}/folders/${folder_id}/data`,
+          {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+          },
+        )
+          .then((res) => res.json())
+          .then((data) => {
+            if (!data.success) {
+              throw new Error("Failed to fetch parent folder info: " + data.message);
+            }
+            return {
+              parent_id: data.data.parent_id,
+              encrypted_key_data: data.data.encrypted_key_data,
+              encrypted_name_data: data.data.encrypted_name_data,
+            };
+          });
+
+        const parent_folder_name = await fetch(
+          `${config.BACKENDURL}/folders/${parent_id}/data`,
+          {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+          },
+        )
+          .then((res) => res.json())
+          .then((data) => {
+            if (!data.success) {
+              throw new Error("Failed to fetch parent folder name: " + data.message);
+            }
+            return { encrypted_name_data: data.data.encrypted_name_data, encrypted_key_data: data.data.encrypted_key_data };
+          });
+        
+        const enc_parent_folder_key_data = hexToBuffer(parent_folder_name.encrypted_key_data);
+        const enc_parent_folder_key_nonce = enc_parent_folder_key_data.slice(0, 12);
+        const enc_parent_folder_key_ciphertext = enc_parent_folder_key_data.slice(12);
+        parent_folder_key = await decrypt(
+          enc_parent_folder_key_ciphertext,
+          user_ark as BufferSource,
+          enc_parent_folder_key_nonce,
+        );
+
+        const enc_parent_folder_name_data = hexToBuffer(parent_folder_name.encrypted_name_data);
+        const enc_parent_folder_name_nonce = enc_parent_folder_name_data.slice(0, 12);
+        const enc_parent_folder_name_ciphertext = enc_parent_folder_name_data.slice(12);
+        const parent_folder_name_dec = new TextDecoder().decode(await decrypt(
+          enc_parent_folder_name_ciphertext,
+          parent_folder_key as BufferSource,
+          enc_parent_folder_name_nonce,
+        ) as BufferSource);
+
+
+
+        result = { parentId: parent_id, parentName: parent_folder_name_dec };
         break;
       }
 
@@ -937,41 +1104,61 @@ globalThis.onmessage = async (e: MessageEvent) => {
         break;
       }
 
-      case "GET_FILE_NAMES_AND_IDS": {
+      case "GET_DECRYPTED_FILE_NAMES_AND_IDS": {
 
         if (!current_folder_key) {
           throw new Error("Current folder key not initialized");
         }
 
-        let raw_file_data: EncryptedUserFile[] = payload.files;
+        let raw_file_data: EncryptedUserFileNoKey[] = payload.files;
 
         if (!raw_file_data || raw_file_data.length === 0) {
           result = { files: [] };
           break;
         }
         const files = await Promise.all(raw_file_data.map(async (file) => {
-
           const file_key_data_string = sessionFileKeys.get(file.id)?.encrypted_file_key;
-          if (!file_key_data_string) {
+
+          if (file_key_data_string == undefined) {
             throw new Error("File key data not found in session for file: " + file.id);
           }
           const file_key_data = hexToBuffer(file_key_data_string);
+          const file_key_nonce = file_key_data.slice(0, 12);
+          const file_key_ciphertext = file_key_data.slice(12);
 
-          const file_key = await decrypt(
-            file_key_data.slice(12),
-            current_folder_key as BufferSource,
-            file_key_data.slice(0, 12),
-          );
+          let file_key: Uint8Array;
+          
+          
+          try {
+            file_key = await decrypt(
+              file_key_ciphertext,
+              current_folder_key as BufferSource,
+              file_key_nonce,
+            );
+          }
+          catch (normal_error) {
+            console.warn(`Decryption of file key for normal file ${file.id} failed.`, {
+              normal_error,              });
+            throw new Error("Failed to decrypt file key for file: " + file.id);
+          }
+          
 
           const enc_file_name_data = hexToBuffer(file.encrypted_name_data);
           const enc_file_name_nonce = enc_file_name_data.slice(0, 12);
           const enc_file_name_ciphertext = enc_file_name_data.slice(12);
 
-          const file_name = new TextDecoder().decode(await decrypt(
-            enc_file_name_ciphertext,
-            expandKeyForName(file_key) as BufferSource,
-            enc_file_name_nonce,
-          ) as BufferSource);
+          let file_name: string;
+          try {
+            file_name = new TextDecoder().decode(await decrypt(
+              enc_file_name_ciphertext,
+              expandKeyForName(file_key) as BufferSource,
+              enc_file_name_nonce,
+            ));
+
+          } catch (error) {
+            console.error("Error decrypting file name for file:", file.id, error);
+            file_name = "Decryption failed";
+          }
 
           return { id: file.id, name: file_name };
         }));
@@ -979,6 +1166,66 @@ globalThis.onmessage = async (e: MessageEvent) => {
         result = { files };
         break;
       }
+
+      case "GET_DECRYPTED_SHARED_FILE_NAMES_AND_IDS": {
+
+        let raw_file_data: EncryptedUserFileNoKey[] = payload.files;
+
+        if (!raw_file_data || raw_file_data.length === 0) {
+          result = { files: [] };
+          break;
+        }
+        const files = await Promise.all(raw_file_data.map(async (file) => {
+          const file_key_data_string = sessionFileKeys.get(file.id)?.encrypted_file_key;
+
+          if (file_key_data_string == undefined) {
+            throw new Error("File key data not found in session for file: " + file.id);
+          }
+          const file_key_data = hexToBuffer(file_key_data_string);
+          const file_key_nonce = file_key_data.slice(0, 12);
+          const file_key_ciphertext = file_key_data.slice(12);
+
+          let file_key: Uint8Array;
+          
+          const xwing_key = await getXwingKeyForFile(file.id);
+          try {
+            file_key = await decrypt(
+              file_key_ciphertext,
+              xwing_key as BufferSource,
+              file_key_nonce,
+            );
+          }
+            catch (xwing_error) {
+              console.warn(`Decryption of file key for shared file ${file.id} with xwing key failed.`, {
+                xwing_error,
+              });
+              throw new Error("Failed to decrypt file key for shared file: " + file.id);
+            }
+          
+
+          const enc_file_name_data = hexToBuffer(file.encrypted_name_data);
+          const enc_file_name_nonce = enc_file_name_data.slice(0, 12);
+          const enc_file_name_ciphertext = enc_file_name_data.slice(12);
+
+          let file_name: string;
+          try {
+            file_name = new TextDecoder().decode(await decrypt(
+              enc_file_name_ciphertext,
+              expandKeyForName(file_key) as BufferSource,
+              enc_file_name_nonce,
+            ));
+
+          } catch (error) {
+            console.error("Error decrypting file name for file:", file.id, error);
+            file_name = "Decryption failed";
+          }
+
+          return { id: file.id, name: file_name };
+        }));
+
+        result = { files };
+        break;
+      } 
       
       case "GET_FOLDER_NAMES_AND_IDS": {
 
@@ -1004,7 +1251,7 @@ globalThis.onmessage = async (e: MessageEvent) => {
 
           const folder_key = await decrypt(
             enc_folder_key_ciphertext,
-            current_folder_key as BufferSource,
+            user_ark as BufferSource,
             enc_folder_key_nonce,
           );
 
@@ -1021,6 +1268,41 @@ globalThis.onmessage = async (e: MessageEvent) => {
         break;
       }
 
+      case "GET_SHARED_FILES": {
+        
+
+        const files: EncryptedUserFileNoKey[] = await fetch(
+          `${config.BACKENDURL}/files/shared`,
+          {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+          },
+        )
+          .then((res) => res.json())
+          .then((data) => {
+            if (!data.success) {
+              throw new Error("Failed to fetch shared files: " + data.message);
+            }
+
+            const temp_files =  data.data.files;
+            const files_to_return: EncryptedUserFileNoKey[] = [];
+            for (const file of temp_files) {
+              sessionFileKeys.set(file.id, {
+                encrypted_file_key: file.encrypted_file_key,
+                temp_decrypted_file_key: null,
+              });
+              files_to_return.push({ id: file.id, encrypted_name_data: file.encrypted_name_data });
+            }
+
+            return files_to_return;
+          });
+
+        result = { files };
+
+        break;
+      }
+
       case "CREATE_FOLDER": {
 
         if (!current_folder_key) {
@@ -1029,9 +1311,9 @@ globalThis.onmessage = async (e: MessageEvent) => {
 
         const folder_name: string = payload.name;
         const parent_folder_id: string | null = current_folder_id;
-        const new_folder_key = crypto.getRandomValues(new Uint8Array(32));
+        const new_folder_key = await generateMasterKey() as Uint8Array;
 
-        const encrypted_folder_key_data = await encrypt(new_folder_key as BufferSource, current_folder_key as BufferSource);
+        const encrypted_folder_key_data = await encrypt(new_folder_key as BufferSource, user_ark as BufferSource);
         const encrypted_folder_name_data = await encrypt(folder_name, new_folder_key as BufferSource);
 
         const new_folder_id = await createFolderForUser(
@@ -1054,7 +1336,7 @@ globalThis.onmessage = async (e: MessageEvent) => {
         const recipient_username: string = payload.recipientUsername;
         const share_duration: number = payload.share_duration;
 
-        const { recipient_x25519_public, recipient_mlkem_public} = await getUserHybridKeys(recipient_username);
+        const { recipient_x25519_public, recipient_mlkem_public } = await getUserHybridKeys(recipient_username);
 
         const { xwing_key, x25519_ephemeral_public, mlkem_ciphertext } =
           await generateHybridSharedKey(
@@ -1109,6 +1391,7 @@ globalThis.onmessage = async (e: MessageEvent) => {
         user_mlkem_private = null;
         user_x25519_public = null;
         user_x25519_private = null;
+        user_ark = null;
         sessionFileKeys.clear();
 
         await fetch(`${config.BACKENDURL}/auth/logout`, {
