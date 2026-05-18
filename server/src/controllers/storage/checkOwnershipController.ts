@@ -1,6 +1,7 @@
 import isFileOwnerService from "../../services/storage/isFileOwnerService";
 import { ApiErrorResponse, ApiSuccessResponse, AuthenticatedRequest, OwnershipTestResult } from "../../types";
 import { Response } from 'express';
+import { isUuidV4 } from "../../utils/validators";
 
 async function isFileOwnerController(req: AuthenticatedRequest, res: Response<ApiSuccessResponse<OwnershipTestResult> | ApiErrorResponse>) {
 
@@ -22,6 +23,11 @@ async function isFileOwnerController(req: AuthenticatedRequest, res: Response<Ap
         return;
     }
 
+    if (!isUuidV4(fileId)) {
+        res.status(400).json({ message: 'Invalid file ID', success: false });
+        return;
+    }
+
     try {
         const is_owner = await isFileOwnerService(userId, fileId);
         if (!is_owner) {
@@ -38,10 +44,10 @@ async function isFileOwnerController(req: AuthenticatedRequest, res: Response<Ap
             data: { isOwner: is_owner }
         });
     } catch (error) {
+        console.error('Check file ownership failed:', error);
         res.status(500).json({
             message: "Unable to check file ownership",
-            success: false,
-            error: (error as Error).message
+            success: false
         });
     }
 }

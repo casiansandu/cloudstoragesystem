@@ -19,7 +19,5 @@ export async function createFolderService(
         })
         .returning({ folder_id: folders.id });
 
-    console.log(`Created folder with ID: ${insertedFolder.folder_id} for user: ${user_id}`);
-    
     return { folder_id: insertedFolder.folder_id };
 }

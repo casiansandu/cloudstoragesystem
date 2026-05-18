@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { getFolderDataByIdService } from '../../services/folders/getFolderDataByIdService';
 import { ApiErrorResponse, AuthenticatedRequest, ApiSuccessResponse } from '../../types';
+import { isUuidV4 } from "../../utils/validators";
 
 export async function getFolderDataController(
     req: AuthenticatedRequest,
@@ -17,6 +18,11 @@ export async function getFolderDataController(
         return;
     }
 
+    if (!isUuidV4(folder_id)) {
+        res.status(400).json({ message: 'Invalid folder ID', success: false });
+        return;
+    }
+
     try {
         const folder_info = await getFolderDataByIdService(user_id, folder_id);
 
@@ -30,8 +36,9 @@ export async function getFolderDataController(
             success: true
         });
     } catch (error) {
+        console.error('Get folder data failed:', error);
         res.status(500).json({
-            message: (error as Error).message,
+            message: 'Unable to retrieve folder data',
             success: false
         });
     }

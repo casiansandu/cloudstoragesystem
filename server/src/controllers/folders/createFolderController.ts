@@ -11,8 +11,6 @@ interface CreateFolderRequest extends AuthenticatedRequest {
 }
 
 function validateCreateFolderRequest(encrypted_key_data: string, parent_folder_id?: string, encrypted_folder_name_data?: string): string | null {
-    console.log('Validating create folder request with data:', {encrypted_key_data, parent_folder_id, encrypted_folder_name_data });
-    
     if (!encrypted_key_data) {
         return 'Missing required fields: encrypted_key_data is required.';
     }
@@ -30,7 +28,6 @@ export async function createFolderController(
 ): Promise<void> {
     const { encrypted_key_data, parent_folder_id, encrypted_folder_name_data } = req.body;
     const user_id = req.user!.id;
-    console.log('Received create folder request with data:', { user_id, encrypted_key_data, parent_folder_id, encrypted_folder_name_data });
 
     const validationError = validateCreateFolderRequest(encrypted_key_data, parent_folder_id, encrypted_folder_name_data);
     if (validationError) {
@@ -52,8 +49,9 @@ export async function createFolderController(
             success: true
         });
     } catch (error) {
+        console.error('Create folder failed:', error);
         res.status(500).json({
-            message: (error as Error).message,
+            message: 'Unable to create folder',
             success: false
         });
     }

@@ -63,9 +63,6 @@ const sessionFileKeys = new Map<string, keysData>();
 export const getManifestData = async (
   file_id: string, fileManifestKey: Uint8Array
 ): Promise<ManifestData> => {
-  if (!user_rsa_private) {
-    throw new Error("User private key not initialized");
-  }
 
   const manifest_name = sha256(file_id + "manifest");
 
@@ -110,6 +107,8 @@ const applyUserState = (update: UserStateUpdate) => {
   current_folder_key = update.current_folder_key;
   current_folder_id = update.current_folder_id;
   user_ark = update.user_ark;
+
+  console.log("User state applied in worker");
 };
 
 const handlers: Record<string, (payload: any) => Promise<HandlerResult>> = {
@@ -142,9 +141,6 @@ const handlers: Record<string, (payload: any) => Promise<HandlerResult>> = {
     return { result: { success: true, fileId } };
   },
   GET_CHUNK_INFOS: async (payload) => {
-    if (!user_mlkem_private || !user_x25519_private || !user_x25519_public) {
-      throw new Error("User keys not initialized");
-    }
     if (!current_folder_key) {
       throw new Error("Current folder key not initialized");
     }
@@ -162,9 +158,6 @@ const handlers: Record<string, (payload: any) => Promise<HandlerResult>> = {
     return { result };
   },
   GET_AND_DECRYPT_CHUNK: async (payload) => {
-    if (!user_mlkem_private || !user_x25519_private || !user_x25519_public || !user_mlkem_public) {
-      throw new Error("User keys not initialized");
-    }
     if (!current_folder_key) {
       throw new Error("Current folder key not initialized");
     }
@@ -345,9 +338,6 @@ const handlers: Record<string, (payload: any) => Promise<HandlerResult>> = {
     return { result: { success: true, folderId: new_folder_id } };
   },
   SHARE_FILE: async (payload) => {
-    if (!user_mlkem_private || !user_x25519_private || !user_x25519_public || !user_mlkem_public) {
-      throw new Error("User keys not initialized");
-    }
 
     const file_id: string = payload.fileId;
     const recipient_username: string = payload.recipientUsername;
@@ -404,6 +394,8 @@ const handlers: Record<string, (payload: any) => Promise<HandlerResult>> = {
     user_x25519_public = null;
     user_x25519_private = null;
     user_ark = null;
+    current_folder_key = null;
+    current_folder_id = null;
     sessionFileKeys.clear();
 
     await fetch(`${config.BACKENDURL}/auth/logout`, {

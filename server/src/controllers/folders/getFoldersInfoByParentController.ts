@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { getFoldersInfoByParentService } from '../../services/folders/getFoldersInfoByParentService';
 import { ApiErrorResponse, AuthenticatedRequest, ApiSuccessResponse } from '../../types';
+import { isUuidV4 } from "../../utils/validators";
 
 export async function getFoldersInfoByParentController(
     req: AuthenticatedRequest,
@@ -19,12 +20,18 @@ export async function getFoldersInfoByParentController(
         return;
     }
 
+    if (!isUuidV4(parent_folder_id)) {
+        res.status(400).json({ message: 'Invalid folder ID', success: false });
+        return;
+    }
+
     try {
         const folders = await getFoldersInfoByParentService(user_id, parent_folder_id);
         res.status(200).json({ success: true, data: { folders }, message: 'Folders retrieved successfully' });
         return;
     } catch (error) {
-        res.status(500).json({ success: false, message: (error as Error).message });
+        console.error('Get folders by parent failed:', error);
+        res.status(500).json({ success: false, message: 'Unable to retrieve folders' });
         return;
     }
 }

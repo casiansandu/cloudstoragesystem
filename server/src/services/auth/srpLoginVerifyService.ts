@@ -48,7 +48,6 @@ export async function srpLoginVerifyService(
 
     } catch (error) {
         await SrpSessionStore.delete(loginSessionId);
-        
-        throw new Error('Invalid password or session proof' + (error as Error).message);
+        throw new Error('Invalid password or session proof');
     }
 }

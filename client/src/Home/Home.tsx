@@ -256,6 +256,7 @@ export const Home = () => {
       console.error("Error sharing file:", error);
       alert("Failed to share file: " + (error as Error).message);
     }
+    setShareButtonPressed(false);
   };
 
   const handleBulkShare = async () => {
@@ -280,9 +281,8 @@ export const Home = () => {
         alert("Failed to share file ID " + fileId + ": " + (error as Error).message);
       }
     }
-    
-    alert("Files shared successfully.");
     handleClearSelection();
+    setShareButtonPressed(false);
   };
 
 

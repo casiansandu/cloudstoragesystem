@@ -21,8 +21,9 @@ export async function getUserKeysController(req: AuthenticatedRequest, res: Resp
             success: true });
         return;
     } catch (error) {
+        console.error('Get user keys failed:', error);
         res.status(500).json({
-            message: (error as Error).message,
+            message: 'Unable to retrieve keys',
             success: false
         });
         return;

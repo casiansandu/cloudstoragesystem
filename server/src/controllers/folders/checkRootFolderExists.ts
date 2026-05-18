@@ -23,6 +23,7 @@ export async function checkRootFolderExistsController(
         const exists = (id != ""); // Convert to boolean
         res.status(200).json({ success: true, data: { exists, id }, message: 'Root folder existence checked successfully' });
     } catch (error) {
-        res.status(500).json({ success: false, message: (error as Error).message });
+        console.error('Check root folder exists failed:', error);
+        res.status(500).json({ success: false, message: 'Unable to check root folder' });
     }
 }

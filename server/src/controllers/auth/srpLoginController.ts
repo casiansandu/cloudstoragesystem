@@ -11,7 +11,6 @@ interface SrpLoginStartSuccessData {
 
 interface SrpLoginVerifySuccessData {
     server_session_proof: string;
-    token: string;
 }
 
 export async function srpLoginStart(
@@ -24,7 +23,6 @@ export async function srpLoginStart(
     }
     try {
         const { salt, server_public, loginSessionId } = await srpLoginStartService(req.body.username, req.body.client_public);
-        console.log(`SRP login started for user: ${req.body.username} with session ID: ${loginSessionId}`);
         res.status(200).json({
             message: 'Srp Login Start successful',
             data: {
@@ -34,7 +32,8 @@ export async function srpLoginStart(
         });
         return;
     } catch (error) {
-        res.status(500).json({ message: (error as Error).message, success: false });
+        console.error('SRP login start failed:', error);
+        res.status(500).json({ message: 'Login failed', success: false });
         return;
     }
 }
@@ -57,20 +56,20 @@ export async function srpLoginVerify(
 
         res.cookie('token', token, {
             httpOnly: true,
-            secure: false,
-            sameSite: 'lax',
+            secure: true,
+            sameSite: 'strict',
             maxAge: 3600000
         });
 
         res.status(200).json({
             message: 'Srp Login Verify successful',
-            data: { server_session_proof, token },
+            data: { server_session_proof },
             success: true
         });
-        console.log("SRP login verified successfully");
         return;
     } catch (error) {
-        res.status(500).json({ message: (error as Error).message, success: false });
+        console.error('SRP login verify failed:', error);
+        res.status(500).json({ message: 'Login failed', success: false });
         return;
     }
 }

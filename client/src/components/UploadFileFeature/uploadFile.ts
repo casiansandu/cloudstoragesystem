@@ -46,7 +46,6 @@ export async function startHybridUpload(
               new Uint8Array(enc_file_name_data.nonce),
               new Uint8Array(enc_file_name_data.ciphertext)
           ) as BufferSource),
-          path: "/",
           file_size: selectedFile.size,
           encrypted_file_key: enc_file_key,
           share_duration: share_duration,
@@ -86,12 +85,13 @@ export async function uploadChunk(bytes: ArrayBuffer, file_id: string, chunk_id:
 
   const data: FileUploadResponse = await res.json();
 
-  if (!data.data?.stored_bytes) {
-    throw new Error("No data returned from server for chunk " + chunk_id);
-  }
 
   if (!data.success) {
     throw new Error(`Chunk upload failed for chunk ${chunk_id}: ${data.message}`);
+  }
+  
+  if (!data.data?.stored_bytes) {
+    throw new Error("No data returned from server for chunk " + chunk_id);
   }
 
   return data.data.stored_bytes; 

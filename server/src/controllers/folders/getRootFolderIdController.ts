@@ -33,8 +33,9 @@ export async function getRootFolderIdController(
             success: true
         });
     } catch (error) {
+        console.error('Get root folder id failed:', error);
         res.status(500).json({
-            message: (error as Error).message,
+            message: 'Unable to retrieve root folder id',
             success: false
         });
     }

@@ -3,11 +3,22 @@ import { Response } from 'express';
 import { ApiErrorResponse, ApiSuccessResponse, AuthenticatedRequest, HybridInfoResult } from "../../types";
 import { getIdByUsername } from '../../services/users/getIdByUsername';
 import { getHybridInfoService } from '../../services/storage/getHybridInfoService';
+import { isUuidV4 } from "../../utils/validators";
 
 export async function getHybridInfoController(req: AuthenticatedRequest, res: Response<ApiSuccessResponse<HybridInfoResult> | ApiErrorResponse>): Promise<void> {
     
     const username = req.user!.username;
     const fileId = req.params.file_id;
+
+    if (!fileId) {
+        res.status(400).json({ message: 'Missing file ID', success: false });
+        return;
+    }
+
+    if (!isUuidV4(fileId)) {
+        res.status(400).json({ message: 'Invalid file ID', success: false });
+        return;
+    }
 
     try {
         const id = await getIdByUsername(username);
@@ -28,8 +39,9 @@ export async function getHybridInfoController(req: AuthenticatedRequest, res: Re
             success: true });
         return;
     } catch (error) {
+        console.error('Get hybrid info failed:', error);
         res.status(500).json({
-            message: (error as Error).message,
+            message: 'Unable to retrieve hybrid info',
             success: false
         });
         return;

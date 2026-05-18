@@ -49,8 +49,8 @@ export async function registerController(
       success: true
     });
   } catch (error) {
-    const err = error as Error;
-    res.status(500).json({ message: err.message, success: false });
+    console.error('SRP registration failed:', error);
+    res.status(500).json({ message: 'Unable to register user', success: false });
   }
 }
 

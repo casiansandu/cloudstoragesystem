@@ -6,7 +6,6 @@ import { files, userAccess } from '../../db/schema';
 async function startHybridUploadService(
     enc_name: string,
     userId: string,
-    path: string,
     file_size: number,
     encrypted_file_key: string,
     share_duration: number,
@@ -20,7 +19,6 @@ async function startHybridUploadService(
             .values({
                 encryptedNameData: enc_name,
                 ownerId: userId,
-                path,
                 fileSize: file_size,
                 folderId: folder_id,
             })

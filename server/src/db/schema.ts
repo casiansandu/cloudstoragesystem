@@ -41,7 +41,6 @@ export const folders = pgTable("folders", {
 // 3. FILES
 export const files = pgTable("files", {
   id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
-  path: varchar("path", { length: 257 }).notNull(),
   // bigint in Postgres, but "number" in JS for easier JSON handling
   fileSize: bigint("file_size", { mode: "number" }).notNull(), 
   encryptedNameData: text("encrypted_name_data").notNull(),

@@ -32,11 +32,11 @@ export async function createSrpUserService(userData: SrpUserRegistration): Promi
     .limit(1);
 
   if (checkUsername.length > 0) {
-    throw new Error(`User with username ${username} already exists.`);
+    throw new Error('User with this username already exists.');
   }
 
   if (checkEmail.length > 0) {
-    throw new Error(`User with email ${email} already exists.`);
+    throw new Error('User with this email already exists.');
   }
 
   // Legacy SQL: INSERT INTO srp_users(...) VALUES(...) RETURNING id

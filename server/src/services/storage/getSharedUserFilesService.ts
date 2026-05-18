@@ -8,7 +8,6 @@ async function getSharedUserFilesService(
     if (!userId) {
         throw new Error("User not found");
     }
-    console.log(`Fetching shared files for userId: ${userId}`);
 
     try {
         return await db.transaction(async (tx) => {
@@ -47,13 +46,10 @@ async function getSharedUserFilesService(
                 encrypted_file_key: file.encrypted_file_key,
             }));
 
-            console.log("Shared user files:", to_return_rows);
-
-
             return to_return_rows;
         });
     } catch (error) {
-        throw new Error("Failed to retrieve shared user files: " + (error as Error).message);
+        throw new Error('Failed to retrieve shared user files');
     }
 }
 

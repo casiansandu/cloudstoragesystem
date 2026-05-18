@@ -6,7 +6,6 @@ import { userAccess } from '../../db/schema';
 
 export async function getHybridInfoService(fileId: string, userId: string): Promise<HybridInfoResult> {
     // Legacy SQL: SELECT x25519_ephemeral_public, mlkem_ciphertext FROM user_access WHERE file_id = $1 AND user_id = $2
-    console.log(`Fetching hybrid info for fileId: ${fileId} and userId: ${userId}`);
     const [info] = await db
         .select({
             x25519_ephemeral_public: userAccess.x25519EphemeralPublic,
@@ -17,11 +16,11 @@ export async function getHybridInfoService(fileId: string, userId: string): Prom
         .limit(1);
 
     if (!info) {
-        throw new Error(`Access record not found for the given file and user: ${fileId}, ${userId}`);
+        throw new Error('Access record not found for the given file and user');
     }
     
     if (!info.x25519_ephemeral_public || !info.mlkem_ciphertext) {
-        throw new Error(`Hybrid encryption fields are missing for the given file and user: ${fileId}, ${userId}`);
+        throw new Error('Hybrid encryption fields are missing for the given file and user');
     }
     return {
         x25519_ephemeral_public: info.x25519_ephemeral_public,

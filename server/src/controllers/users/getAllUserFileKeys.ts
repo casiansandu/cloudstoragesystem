@@ -25,8 +25,9 @@ export async function getAllUserFileKeysController(
             success: true });
         return;
     } catch (error) {
+        console.error('Get all user file keys failed:', error);
         res.status(500).json({
-            message: (error as Error).message,
+            message: 'Unable to retrieve file keys',
             success: false
         });
         return;

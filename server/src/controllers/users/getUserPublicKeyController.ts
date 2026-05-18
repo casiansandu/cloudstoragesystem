@@ -27,8 +27,9 @@ export async function getUserPublicKeyController(req: AuthenticatedRequest, res:
             success: true });
         return;
     } catch (error) {
+        console.error('Get user public key failed:', error);
         res.status(500).json({
-            message: (error as Error).message,
+            message: 'Unable to retrieve public key',
             success: false
         });
         return;

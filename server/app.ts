@@ -9,6 +9,7 @@ import folderRoutes from './src/routes/folders';
 import https from 'https';
 import fs from 'fs';
 import path from 'path';
+import rateLimit from 'express-rate-limit';
 
 const certPath = path.join(__dirname, 'certs', 'localhost.pem');
 const keyPath = path.join(__dirname, 'certs', 'localhost-key.pem');
@@ -26,7 +27,15 @@ app.use(cors({
 }));
 app.use(cookieParser());
 
-app.use('/auth', authRoutes);
+const authLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 1000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many requests, please try again later.' }
+});
+
+app.use('/auth', authLimiter, authRoutes);
 app.use('/users', userRoutes);
 app.use('/files', fileRoutes);
 app.use('/folders', folderRoutes);

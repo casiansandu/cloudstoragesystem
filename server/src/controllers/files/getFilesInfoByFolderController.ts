@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import getFilesInfoByFolderService from '../../services/files/getFilesInfoByFolderService';
 import { ApiErrorResponse, AuthenticatedRequest, ApiSuccessResponse } from '../../types';
+import { isUuidV4 } from "../../utils/validators";
 
 export default async function getFilesInfoByFolderController(
     req: AuthenticatedRequest,
@@ -18,10 +19,16 @@ export default async function getFilesInfoByFolderController(
         return;
     }
 
+    if (!isUuidV4(folder_id)) {
+        res.status(400).json({ success: false, message: 'Invalid folder ID' });
+        return;
+    }
+
     try {
         const files = await getFilesInfoByFolderService(user_id, folder_id);
         res.json({ success: true, data: { files }, message: 'Files retrieved successfully' });
     } catch (error) {
-        res.status(500).json({ success: false, message: (error as Error).message });
+        console.error('Get files by folder failed:', error);
+        res.status(500).json({ success: false, message: 'Unable to retrieve files' });
     }
 }

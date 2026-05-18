@@ -47,7 +47,6 @@ export interface FileUploadRequest extends AuthenticatedRequest {
 export interface StartFileUploadRequest extends AuthenticatedRequest {
   body: {
     name: string;
-    path: string;
     file_size: number;
     encrypted_file_key: string;
     share_duration: number;
@@ -57,7 +56,6 @@ export interface StartFileUploadRequest extends AuthenticatedRequest {
 export interface StartHybridFileUploadRequest extends AuthenticatedRequest {
   body: {
     name: string;
-    path: string;
     file_size: number;
     encrypted_file_key: string;
     share_duration: number;

@@ -27,8 +27,9 @@ export async function getUserPublicKeyBundleController(req: AuthenticatedRequest
             success: true });
         return;
     } catch (error) {
+        console.error('Get user public key bundle failed:', error);
         res.status(500).json({
-            message: (error as Error).message,
+            message: 'Unable to retrieve public key bundle',
             success: false
         });
         return;

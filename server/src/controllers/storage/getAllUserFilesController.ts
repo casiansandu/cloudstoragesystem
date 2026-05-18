@@ -21,7 +21,8 @@ export async function getAllUserFilesController(
         res.status(200).json({ message: 'Files retrieved successfully', data: { files }, success: true });
         return;
     } catch (error) {
-        res.status(500).json({ message: (error as Error).message, success: false });
+        console.error('Get all user files failed:', error);
+        res.status(500).json({ message: 'Unable to retrieve files', success: false });
         return;
     }
 

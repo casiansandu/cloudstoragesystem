@@ -33,6 +33,38 @@ export type UserStateUpdate = {
   user_ark: Uint8Array;
 };
 
+const feth_and_decrypt_user_ark = async (username: string, user_master_key: Uint8Array) => {
+  const { nonce: enc_ark_nonce, enc_ark } = await fetch(
+    `${config.BACKENDURL}/users/keys/encrypted_ark`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    },
+  )
+    .then((res) => res.json())
+    .then((data) => {
+      if (!data.success) {
+        throw new Error("Failed to fetch user's encrypted ark");
+      }
+      const fullArkBuffer = new Uint8Array(
+        hexToBuffer(data.data.encrypted_ark),
+      );
+
+      return {
+        nonce: fullArkBuffer.slice(0, 12),
+        enc_ark: fullArkBuffer.slice(12),
+      };
+    });
+
+  const user_ark = await decrypt(
+    enc_ark,
+    user_master_key as BufferSource,
+    enc_ark_nonce,
+  );
+  return user_ark;
+}
+
 export const initializeUserData = async (
   username: string,
   password: string,
@@ -64,7 +96,7 @@ export const initializeUserData = async (
   const private_key_nonce = private_key_data.slice(0, 12);
   const private_key_ciphertext = private_key_data.slice(12);
 
-  const decryptedPrivateKey = await decrypt(
+  const decrypted_rsa_private_key = await decrypt(
     private_key_ciphertext,
     user_master_key as BufferSource,
     private_key_nonce,
@@ -72,7 +104,7 @@ export const initializeUserData = async (
 
   const user_rsa_private = await crypto.subtle.importKey(
     "pkcs8",
-    decryptedPrivateKey as BufferSource,
+    decrypted_rsa_private_key as BufferSource,
     {
       name: "RSA-OAEP",
       hash: { name: "SHA-256" },
@@ -94,37 +126,11 @@ export const initializeUserData = async (
 
   console.log("RSA user keys initialized in worker.");
 
-  const { nonce: enc_ark_nonce, enc_ark } = await fetch(
-    `${config.BACKENDURL}/users/keys/${username}/encrypted_ark`,
-    {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    },
-  )
-    .then((res) => res.json())
-    .then((data) => {
-      if (!data.success) {
-        throw new Error("Failed to fetch user's encrypted ark");
-      }
-      const fullArkBuffer = new Uint8Array(
-        hexToBuffer(data.data.encrypted_ark),
-      );
-
-      return {
-        nonce: fullArkBuffer.slice(0, 12),
-        enc_ark: fullArkBuffer.slice(12),
-      };
-    });
-
-  const user_ark = await decrypt(
-    enc_ark,
-    user_master_key as BufferSource,
-    enc_ark_nonce,
-  );
+  const user_ark = await feth_and_decrypt_user_ark(username, user_master_key);
+  console.log("User ARK decrypted");
 
   const { nonce: enc_seed_nonce, enc_seed } = await fetch(
-    `${config.BACKENDURL}/users/keys/${username}/encrypted_seed`,
+    `${config.BACKENDURL}/users/keys/encrypted_seed`,
     {
       method: "GET",
       headers: { "Content-Type": "application/json" },

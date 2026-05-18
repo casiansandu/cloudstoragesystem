@@ -2,6 +2,7 @@ import { ApiErrorResponse, ApiSuccessResponse, AuthenticatedRequest } from "../.
 import { Response } from 'express';
 import deleteFileService from "../../services/storage/deleteFileService";
 import isFileOwnerService from "../../services/storage/isFileOwnerService";
+import { isUuidV4 } from "../../utils/validators";
 
 async function deleteFileController(req: AuthenticatedRequest, res: Response<ApiSuccessResponse<any> | ApiErrorResponse>): Promise<void> {
     
@@ -25,6 +26,11 @@ async function deleteFileController(req: AuthenticatedRequest, res: Response<Api
         return;
     }
 
+    if (!isUuidV4(fileId)) {
+        res.status(400).json({ message: 'Invalid file ID', success: false });
+        return;
+    }
+
     try {
         const is_owner = await isFileOwnerService(userId, fileId);
 
@@ -45,10 +51,10 @@ async function deleteFileController(req: AuthenticatedRequest, res: Response<Api
         return;
         
     } catch (error) {
+        console.error('Delete file failed:', error);
         res.status(500).json({
             message: "Unable to delete file",
-            success: false,
-            error: (error as Error).message
+            success: false
         });
     }
 }

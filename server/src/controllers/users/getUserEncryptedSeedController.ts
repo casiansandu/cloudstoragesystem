@@ -6,13 +6,28 @@ import getEncryptedSeedService from '../../services/users/getUserEncryptedSeed';
 
 export async function getUserEncryptedSeedController(req: AuthenticatedRequest, res: Response<ApiSuccessResponse<GetEncryptedSeedResult> | ApiErrorResponse>): Promise<void> {
     
-    const username = req.params.username;
+    const user = req.user;
+
+    if (!user) {
+        res.status(401).json({
+            message: 'Unauthorized',
+            success: false
+        });
+        return;
+    }
 
     try {
-        const id = await getIdByUsername(username);
+        const id = await getIdByUsername(user.username);
         if (!id) {
             res.status(404).json({
                 message: 'User not found',
+                success: false
+            });
+            return;
+        }
+        if (id !== user.id) {
+            res.status(403).json({
+                message: 'Forbidden',
                 success: false
             });
             return;
@@ -27,8 +42,9 @@ export async function getUserEncryptedSeedController(req: AuthenticatedRequest, 
             success: true });
         return;
     } catch (error) {
+        console.error('Get encrypted seed failed:', error);
         res.status(500).json({
-            message: (error as Error).message,
+            message: 'Unable to retrieve encrypted seed',
             success: false
         });
         return;

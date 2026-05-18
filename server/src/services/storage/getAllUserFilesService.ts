@@ -40,7 +40,7 @@ async function getAllUserFilesService(owner_id: string): Promise<Array<{id: stri
         });
     }
     catch (error) {
-        throw new Error('Failed to retrieve user files: ' + (error as Error).message);
+        throw new Error('Failed to retrieve user files');
     }
     
 }

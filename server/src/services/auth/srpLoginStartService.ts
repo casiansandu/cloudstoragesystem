@@ -14,7 +14,6 @@ export async function srpLoginStartService(
   username: string, 
   client_public: string // This is 'A'
 ): Promise<SrpLoginStartResult> {
-  console.log(`Starting SRP login for user: ${username}`);
     
   // Legacy SQL: SELECT * FROM srp_users WHERE username = $1
   const [srp_user] = await db

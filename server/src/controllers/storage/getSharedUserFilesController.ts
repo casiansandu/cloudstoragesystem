@@ -21,7 +21,8 @@ export async function getSharedUserFilesController(
         res.status(200).json({ message: "Shared files retrieved successfully", data: { files }, success: true });
         return;
     } catch (error) {
-        res.status(500).json({ message: (error as Error).message, success: false });
+        console.error('Get shared files failed:', error);
+        res.status(500).json({ message: 'Unable to retrieve shared files', success: false });
         return;
     }
 }
