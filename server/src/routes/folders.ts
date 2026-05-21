@@ -4,7 +4,7 @@ import { getRootFolderIdController } from '../controllers/folders/getRootFolderI
 import getFilesInfoByFolderController from '../controllers/files/getFilesInfoByFolderController';
 import authMiddleware from '../middleware/authMiddleware';
 import { getFoldersInfoByParentController } from '../controllers/folders/getFoldersInfoByParentController';
-import { checkRootFolderExistsController } from '../controllers/folders/checkRootFolderExists';
+import { checkRootFolderExistsController } from '../controllers/folders/checkRootFolderExistsController';
 import getFolderDataController from '../controllers/folders/getFolderDataController';
 
 

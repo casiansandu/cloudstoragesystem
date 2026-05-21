@@ -1,32 +1,14 @@
 import { sha256 } from "js-sha256";
 import {
   bufferToHex,
-  decryptRSA,
   deriveChunkKey,
   encrypt,
-  encryptRSA,
-  generateMasterKey,
-  hexToBuffer,
   type EncryptedResult,
 } from "../../../utils/crypto";
 import type { FileUploadResponse, ManifestData } from "../../utils/apiTypes";
 import { concatUint8, gen_uuidv5 } from "../../utils/funcs";
 import config from "../../../config/config";
 import { v4 as uuidv4 } from "uuid";
-
-
-async function getManifestKeyFromBackend(file_id: string): Promise<BufferSource> {
-  const res = await fetch(`${config.BACKENDURL}/files/${file_id}/manifest_key`, {
-    method: "GET",
-    credentials: "include"
-  });
-  const data = await res.json();
-
-  if (!data.success) {
-    throw new Error("Failed to get manifest key: " + data.message);
-  }
-  return hexToBuffer(data.data.encrypted_manifest_key) as BufferSource;
-}
 
 
 export async function startHybridUpload(
@@ -56,7 +38,6 @@ export async function startHybridUpload(
   const data: FileUploadResponse = await res.json();
 
   file_id = data.data?.file_id?? "";
-  //const access_id = data.data?.access_id?? "";
 
   if (!data.success) {
       throw new Error("Failed to start upload: " + data.message);

@@ -2,7 +2,6 @@ import { Response } from "express";
 import { ApiErrorResponse, ApiSuccessResponse, AuthenticatedRequest, GetFileMasterKeyResult } from "../../types";
 import getFileMasterKeyService from '../../services/storage/getFileMasterKeyService';
 import hasAccessToFileService from "../../services/storage/hasAccessToFileService";
-import { isUuidV4 } from "../../utils/validators";
 
 async function getFileMasterKeyController(req: AuthenticatedRequest, res: Response<ApiSuccessResponse<GetFileMasterKeyResult> | ApiErrorResponse>): Promise<void> {
     
@@ -14,11 +13,6 @@ async function getFileMasterKeyController(req: AuthenticatedRequest, res: Respon
             message: 'Missing file_id or user_id',
             success: false
         });
-        return;
-    }
-
-    if (!isUuidV4(file_id)) {
-        res.status(400).json({ message: 'Invalid file ID', success: false });
         return;
     }
 

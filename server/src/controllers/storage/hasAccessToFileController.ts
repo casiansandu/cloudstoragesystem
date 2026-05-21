@@ -1,7 +1,6 @@
 import { Response } from "express";
 import { ApiErrorResponse, ApiSuccessResponse, AuthenticatedRequest } from "../../types";
 import hasAccessToFileService from '../../services/storage/hasAccessToFileService';
-import { isUuidV4 } from "../../utils/validators";
 
 type FileAccessResult = {
     access_id: string;
@@ -22,11 +21,6 @@ async function hasAccessToFileController(
         return;
     }
 
-    if (!isUuidV4(file_id)) {
-        res.status(400).json({ message: 'Invalid file ID', success: false });
-        return;
-    }
-
     try {
         const access_id = await hasAccessToFileService(user_id, file_id);
         if (!access_id) {
@@ -36,7 +30,6 @@ async function hasAccessToFileController(
             });
             return;
         }
-        //console.log("Access ID:", access_id);
         res.status(200).json({ 
             message: 'File access check completed successfully',
             data: {

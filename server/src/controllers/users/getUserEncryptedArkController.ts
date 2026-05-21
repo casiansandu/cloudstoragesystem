@@ -1,7 +1,6 @@
 
 import { Response } from 'express';
 import { ApiErrorResponse, ApiSuccessResponse, AuthenticatedRequest, GetEncryptedArkResult } from "../../types";
-import { getIdByUsername } from '../../services/users/getIdByUsername';
 import getEncryptedArkService from '../../services/users/getUserEncryptedArkService';
 
 export async function getUserEncryptedArkController(req: AuthenticatedRequest, res: Response<ApiSuccessResponse<GetEncryptedArkResult> | ApiErrorResponse>): Promise<void> {
@@ -17,22 +16,7 @@ export async function getUserEncryptedArkController(req: AuthenticatedRequest, r
     }
 
     try {
-        const id = await getIdByUsername(user.username);
-        if (!id) {
-            res.status(404).json({
-                message: 'User not found',
-                success: false
-            });
-            return;
-        }
-        if (id !== user.id) {
-            res.status(403).json({
-                message: 'Forbidden',
-                success: false
-            });
-            return;
-        }
-        const seed = await getEncryptedArkService(id);    
+        const seed = await getEncryptedArkService(user.id);    
         
         res.status(200).json({ 
             message: 'Encrypted ark retrieved successfully',

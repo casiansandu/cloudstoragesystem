@@ -28,7 +28,7 @@ export async function getRootFolderIdController(
         res.status(200).json({
             message: 'Root folder info retrieved successfully',
             data: {
-                root_folder_id: root_folder_info.root_folder_id
+                root_folder_id: root_folder_info
             },
             success: true
         });

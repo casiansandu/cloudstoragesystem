@@ -2,15 +2,17 @@ import { Response } from "express";
 import { ApiErrorResponse, ApiSuccessResponse, FileUploadRequest } from "../../types";
 import uploadChunkService from "../../services/storage/uploadChunkService";
 import isFileOwnerService from "../../services/storage/isFileOwnerService";
-import { isUuidV4 } from "../../utils/validators";
 
 interface ChunkUploadSuccess {
     stored_bytes: number;
 }
 
+const MAX_CHUNK_SIZE_BYTES = 5 * 1024 * 1024;
+
 export async function uploadController(
     req: FileUploadRequest, 
-    res: Response<ApiSuccessResponse<ChunkUploadSuccess> | ApiErrorResponse>): Promise<void> {
+    res: Response<ApiSuccessResponse<ChunkUploadSuccess> | ApiErrorResponse>
+): Promise<void> {
     const id = req.user?.id;
     const file_id = req.params.file_id;
     const chunk_id = req.params.chunk_id;
@@ -25,12 +27,9 @@ export async function uploadController(
         return;
     }
 
-    if (!isUuidV4(chunk_id)) {
-        res.status(400).json({ message: 'Invalid chunk ID', success: false });
-        return;
-    }
-    if (!isUuidV4(file_id)) {
-        res.status(400).json({ message: 'Invalid file ID', success: false });
+    const chunkSize = req.body.byteLength;
+    if (chunkSize <= 0 || chunkSize > MAX_CHUNK_SIZE_BYTES) {
+        res.status(400).json({ message: 'Invalid chunk size', success: false });
         return;
     }
 

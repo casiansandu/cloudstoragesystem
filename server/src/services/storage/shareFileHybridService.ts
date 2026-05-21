@@ -2,8 +2,10 @@ import db from "../../db/db";
 import { getIdByUsername } from "../users/getIdByUsername";
 import { and, eq } from 'drizzle-orm';
 import { files, userAccess } from '../../db/schema';
+import { isUuidV4 } from "../../utils/validators";
 
 export async function shareFileHybridService(
+  requester_id: string,
   file_id: string,
   recipient_username: string,
   encrypted_file_key: string,
@@ -11,6 +13,14 @@ export async function shareFileHybridService(
   mlkem_ciphertext: string,
   x25519_ephemeral_public: string
 ): Promise<string> {
+
+  if (!isUuidV4(file_id)) {
+    throw new Error("Invalid file ID");
+  }
+  if (!isUuidV4(requester_id)) {
+    throw new Error("Invalid requester ID");
+  }
+
   let result: { id: string };
 
   const [file_exists] = await db
@@ -21,6 +31,10 @@ export async function shareFileHybridService(
 
   if (!file_exists) {
     throw new Error("File does not exist");
+  }
+
+  if (file_exists.owner_id !== requester_id) {
+    throw new Error("Access denied: not file owner");
   }
 
   const recipient_id = await getIdByUsername(recipient_username);

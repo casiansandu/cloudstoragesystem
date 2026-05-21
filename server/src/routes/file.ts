@@ -1,4 +1,5 @@
 import express, { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 
 import { authMiddleware } from '../middleware/authMiddleware';
 import { getAllUserFilesController } from '../controllers/storage/getAllUserFilesController';
@@ -16,16 +17,40 @@ import { getSharedUserFilesController } from '../controllers/storage/getSharedUs
 const router: Router = express.Router();
 const rawParser = express.raw({ type: 'application/octet-stream', limit: '50mb' });
 
+const uploadStartLimiter = rateLimit({
+	windowMs: 10 * 60 * 1000,
+	max: 300,
+	standardHeaders: true,
+	legacyHeaders: false,
+	message: { message: 'Too many upload requests, please try again later.' }
+});
+
+const uploadChunkLimiter = rateLimit({
+	windowMs: 10 * 60 * 1000,
+	max: 6000,
+	standardHeaders: true,
+	legacyHeaders: false,
+	message: { message: 'Too many chunk upload requests, please try again later.' }
+});
+
+const downloadLimiter = rateLimit({
+	windowMs: 10 * 60 * 1000,
+	max: 600,
+	standardHeaders: true,
+	legacyHeaders: false,
+	message: { message: 'Too many download requests, please try again later.' }
+});
+
 router.get('/all', authMiddleware, getAllUserFilesController);
 router.get('/shared', authMiddleware, getSharedUserFilesController);
 router.get('/hasaccess/:file_id', authMiddleware, hasAccessToFileController);
 router.get('/isowner/:file_id', authMiddleware, isFileOwnerController);
-router.get(`/download/:file_id/:chunk_id`, authMiddleware, getChunkController);
+router.get(`/download/:file_id/:chunk_id`, authMiddleware, downloadLimiter, getChunkController);
 router.get(`/:file_id/key`, authMiddleware, getFileMasterKeyController);
 router.get(`/:file_id/hybrid_info`, authMiddleware, getHybridInfoController);
 
-router.post('/upload/start_hybrid', authMiddleware, startHybridUploadController);
-router.post('/upload/:file_id/:chunk_id', authMiddleware, rawParser, uploadController);
+router.post('/upload/start_hybrid', authMiddleware, uploadStartLimiter, startHybridUploadController);
+router.post('/upload/:file_id/:chunk_id', authMiddleware, uploadChunkLimiter, rawParser, uploadController);
 router.post('/share_hybrid', authMiddleware, shareFileHybridController);
 
 router.delete('/:file_id', authMiddleware, deleteFileController);

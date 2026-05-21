@@ -18,13 +18,13 @@ export const createFolderForUser = async (
     }),
   });
   const data = await res.json();
-  console.log("Create folder response:", { message: data.data.message, success: data.success });
+  console.log("Create folder response:", { message: data.message, success: data.success });
 
   if (!data.success) {
-    throw new Error("Failed to create folder for user: " + data.data.message);
+    throw new Error("Failed to create folder for user: " + data.message);
   }
 
-  return data.data.id;
+  return data.data.folder_id;
 };
 
 export const getRootFolderId = async () => {

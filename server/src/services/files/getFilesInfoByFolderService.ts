@@ -1,5 +1,5 @@
 import db from '../../db/db';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, or, sql } from 'drizzle-orm';
 import { files, userAccess } from '../../db/schema';
 
 export default async function getFilesInfoByFolderService(user_id: string, folder_id: string): Promise<{ id: string, encrypted_name_data: string, encrypted_key_data: string }[]> {
@@ -17,7 +17,11 @@ export default async function getFilesInfoByFolderService(user_id: string, folde
             and(
                 eq(files.folderId, folder_id),
                 eq(userAccess.userId, user_id),
-                isNull(userAccess.mlkemCiphertext)
+                isNull(userAccess.mlkemCiphertext),
+                or(
+                    eq(userAccess.shareDuration, 0),
+                    sql`${userAccess.createdAt} + (${userAccess.shareDuration} * INTERVAL '1 day') >= CURRENT_TIMESTAMP`
+                )
             )
         );
 
