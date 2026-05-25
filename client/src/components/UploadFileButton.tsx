@@ -29,6 +29,7 @@ const EncryptedUpload = ({ onUploadSuccess } : UploadFileButtonProps) => {
             
             setStatus("Uploading...");
 
+            //const result = await worker.uploadFile(selectedFile);
             const result = await worker.uploadFile(selectedFile);
             if (!result.success) {
                 throw new Error("Upload failed in worker");

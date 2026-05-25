@@ -2,6 +2,7 @@ import { ApiErrorResponse, ApiSuccessResponse, ShareFileHybridRequest } from "..
 import { Response } from "express";
 import { shareFileHybridService } from "../../services/storage/shareFileHybridService";
 import isFileOwnerService from "../../services/storage/isFileOwnerService";
+import { isUuidV4 } from "../../utils/validators";
 
 type FileRequestResult = {
     file_access_id: string;
@@ -31,6 +32,11 @@ export async function shareFileHybridController(req: ShareFileHybridRequest, res
         return;
     }
 
+    if (!isUuidV4(file_id)) {
+        res.status(400).json({ message: 'Invalid file ID', success: false });
+        return;
+    }
+
     try {
         const is_file_owner = await isFileOwnerService(user.id, file_id);
 
@@ -42,7 +48,7 @@ export async function shareFileHybridController(req: ShareFileHybridRequest, res
             return;
         }
 
-        const access_id = await shareFileHybridService(user.id, file_id, recipient_username, encrypted_file_key, share_duration, mlkem_ciphertext, x25519_ephemeral_public);
+        const access_id = await shareFileHybridService(file_id, recipient_username, encrypted_file_key, share_duration, mlkem_ciphertext, x25519_ephemeral_public);
         res.status(200).json({
             message: 'File shared successfully',
             success: true,

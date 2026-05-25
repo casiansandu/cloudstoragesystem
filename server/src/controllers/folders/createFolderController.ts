@@ -1,7 +1,6 @@
 import { Response } from 'express';
 import { ApiErrorResponse, AuthenticatedRequest, ApiSuccessResponse } from '../../types';
 import { createFolderService } from '../../services/folders/createFolderService';
-import isFolderOwnerService from '../../services/folders/isFolderOwnerService';
 
 interface CreateFolderRequest extends AuthenticatedRequest {
     body: {
@@ -42,21 +41,6 @@ export async function createFolderController(
     }
 
     try {
-        let is_folder_owner: boolean;
-        if (parent_folder_id) {
-            is_folder_owner = await isFolderOwnerService(user_id, parent_folder_id);
-        } else {
-            is_folder_owner = true;
-        }
-
-        if (!is_folder_owner) {
-            res.status(403).json({
-                message: 'You are not the owner of the specified folder',
-                success: false
-            });
-            return;
-        }
-
         const creation_res = await createFolderService(user_id, encrypted_key_data, parent_folder_id, encrypted_folder_name_data);
 
         res.status(201).json({

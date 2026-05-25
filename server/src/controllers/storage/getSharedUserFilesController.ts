@@ -1,21 +1,22 @@
 import getSharedUserFilesService from "../../services/storage/getSharedUserFilesService";
-import { ApiErrorResponse, ApiSuccessResponse, AuthenticatedRequest, GetAllFilesData } from "../../types";
-import { Response } from "express";
+import { ApiErrorResponse, ApiSuccessResponse, GetAllFilesData } from "../../types";
+import verifyJwtToken from "../../services/auth/verifyJwt";
+import { Request, Response } from "express";
 
 export async function getSharedUserFilesController(
-    req: AuthenticatedRequest,
+    req: Request,
     res: Response<ApiSuccessResponse<GetAllFilesData> | ApiErrorResponse>
 ): Promise<void> {
+    const token = req.cookies?.token;
 
-    const user_id = req.user?.id;
-
-    if (!user_id) {
-        res.status(401).json({ message: 'Unauthorized', success: false });
+    if (!token) {
+        res.status(400).json({ message: "No token", success: false });
         return;
     }
 
     try {
-        const files = await getSharedUserFilesService(user_id);
+        const { id } = await verifyJwtToken(token);
+        const files = await getSharedUserFilesService(id);
 
         res.status(200).json({ message: "Shared files retrieved successfully", data: { files }, success: true });
         return;

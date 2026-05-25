@@ -1,19 +1,9 @@
 import db from '../../db/db';
 import { and, eq } from 'drizzle-orm';
 import { folders } from '../../db/schema';
-import { isUuidV4 } from '../../utils/validators';
 
 export async function getFolderDataByIdService(user_id: string, folder_id: string): Promise<{ folder_id: string, parent_id: string | null, encrypted_key_data: string, encrypted_name_data: string | null }> {
     // Legacy SQL: SELECT encrypted_key_data, encrypted_name_data FROM folders WHERE id = $1 AND owner_id = $2
-    
-
-    if (!isUuidV4(folder_id)) {
-        throw new Error('Invalid folder ID');
-    }
-    if (!isUuidV4(user_id)) {
-        throw new Error('Invalid user ID');
-    }
-    
     const [result] = await db
         .select({ folder_id: folders.id, parent_id: folders.parentId, encrypted_key_data: folders.encryptedKeyData, encrypted_name_data: folders.encryptedNameData })
         .from(folders)

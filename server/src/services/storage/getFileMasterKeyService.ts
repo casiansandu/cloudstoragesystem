@@ -1,5 +1,5 @@
 import db from "../../db/db";
-import { and, eq, or, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { userAccess } from '../../db/schema';
 
 
@@ -9,16 +9,7 @@ export default async function getFileMasterKeyService(user_id: string, file_id: 
     const [enc_file_key] = await db
         .select({ encrypted_file_key: userAccess.encryptedFileKey })
         .from(userAccess)
-        .where(
-            and(
-                eq(userAccess.fileId, file_id),
-                eq(userAccess.userId, user_id),
-                or(
-                    eq(userAccess.shareDuration, 0),
-                    sql`${userAccess.createdAt} + (${userAccess.shareDuration} * INTERVAL '1 day') >= CURRENT_TIMESTAMP`
-                )
-            )
-        )
+        .where(and(eq(userAccess.fileId, file_id), eq(userAccess.userId, user_id)))
         .limit(1);
     if (!enc_file_key) {
         throw new Error('Error fetching file master key: access not found for this user and file');

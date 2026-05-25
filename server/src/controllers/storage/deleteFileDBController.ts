@@ -26,6 +26,11 @@ async function deleteFileController(req: AuthenticatedRequest, res: Response<Api
         return;
     }
 
+    if (!isUuidV4(fileId)) {
+        res.status(400).json({ message: 'Invalid file ID', success: false });
+        return;
+    }
+
     try {
         const is_owner = await isFileOwnerService(userId, fileId);
 

@@ -8,8 +8,6 @@ interface StartUploadDataResult {
     access_id: string;
 }
 
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 * 1024;
-
 export async function startHybridUploadController(
     req: StartHybridFileUploadRequest,
     res: Response<ApiSuccessResponse<StartUploadDataResult> | ApiErrorResponse>
@@ -34,11 +32,6 @@ export async function startHybridUploadController(
 
     if (typeof file_size !== 'number' || !Number.isFinite(file_size) || file_size <= 0) {
         res.status(400).json({ message: 'Invalid file size', success: false });
-        return;
-    }
-
-    if (file_size > MAX_FILE_SIZE_BYTES) {
-        res.status(400).json({ message: 'File size exceeds limit', success: false });
         return;
     }
 

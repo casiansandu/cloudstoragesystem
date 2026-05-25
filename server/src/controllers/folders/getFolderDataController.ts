@@ -18,6 +18,11 @@ export async function getFolderDataController(
         return;
     }
 
+    if (!isUuidV4(folder_id)) {
+        res.status(400).json({ message: 'Invalid folder ID', success: false });
+        return;
+    }
+
     try {
         const folder_info = await getFolderDataByIdService(user_id, folder_id);
 

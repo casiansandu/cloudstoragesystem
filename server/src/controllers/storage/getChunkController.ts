@@ -1,5 +1,5 @@
 
-import {  Response } from "express";
+import { Request, Response } from "express";
 import { ApiErrorResponse, ApiSuccessResponse, AuthenticatedRequest } from "../../types";
 import * as fs from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
@@ -27,15 +27,18 @@ export default async function getChunkController(
         res.status(400).json({ message: 'Invalid chunk ID', success: false });
         return;
     }
-
-    const user_id = req.user?.id;
-    if (!user_id) {
+    if (!isUuidV4(file_id)) {
+        res.status(400).json({ message: 'Invalid file ID', success: false });
+        return;
+    }
+    const user = req.user;
+    if (!user) {
         res.status(401).json({ message: 'Unauthorized', success: false });
         return;
     }
 
     try {
-        const has_access = await hasAccessToFileService(user_id, file_id);
+        const has_access = await hasAccessToFileService(user.id, file_id);
 
         if (!has_access) {
             res.status(403).json({ message: 'Access denied', success: false });

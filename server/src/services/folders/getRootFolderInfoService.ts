@@ -3,7 +3,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { folders } from '../../db/schema';
 
 
-export async function getRootFolderIdService(user_id: string): Promise<string> {
+export async function getRootFolderIdService(user_id: string): Promise<{ root_folder_id: string }> {
     // Legacy SQL: SELECT id FROM folders WHERE owner_id = $1 AND parent_id IS NULL
     const [result] = await db
         .select({ id: folders.id })
@@ -15,5 +15,5 @@ export async function getRootFolderIdService(user_id: string): Promise<string> {
         throw new Error('Root folder id not found for the specified user.');
     }
 
-    return result.id;
+    return { root_folder_id: result.id };
 }

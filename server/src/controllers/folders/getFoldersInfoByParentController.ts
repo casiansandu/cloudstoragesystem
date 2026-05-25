@@ -20,6 +20,11 @@ export async function getFoldersInfoByParentController(
         return;
     }
 
+    if (!isUuidV4(parent_folder_id)) {
+        res.status(400).json({ message: 'Invalid folder ID', success: false });
+        return;
+    }
+
     try {
         const folders = await getFoldersInfoByParentService(user_id, parent_folder_id);
         res.status(200).json({ success: true, data: { folders }, message: 'Folders retrieved successfully' });

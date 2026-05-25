@@ -1,6 +1,7 @@
 import isFileOwnerService from "../../services/storage/isFileOwnerService";
 import { ApiErrorResponse, ApiSuccessResponse, AuthenticatedRequest, OwnershipTestResult } from "../../types";
 import { Response } from 'express';
+import { isUuidV4 } from "../../utils/validators";
 
 async function isFileOwnerController(req: AuthenticatedRequest, res: Response<ApiSuccessResponse<OwnershipTestResult> | ApiErrorResponse>) {
 
@@ -19,6 +20,11 @@ async function isFileOwnerController(req: AuthenticatedRequest, res: Response<Ap
             message: 'Bad Request: fileId is required',
             success: false
         });
+        return;
+    }
+
+    if (!isUuidV4(fileId)) {
+        res.status(400).json({ message: 'Invalid file ID', success: false });
         return;
     }
 

@@ -1,6 +1,7 @@
 
 import { Response } from 'express';
 import { ApiErrorResponse, ApiSuccessResponse, AuthenticatedRequest, GetEncryptedSeedResult } from "../../types";
+import { getIdByUsername } from '../../services/users/getIdByUsername';
 import getEncryptedSeedService from '../../services/users/getUserEncryptedSeed';
 
 export async function getUserEncryptedSeedController(req: AuthenticatedRequest, res: Response<ApiSuccessResponse<GetEncryptedSeedResult> | ApiErrorResponse>): Promise<void> {
@@ -16,7 +17,22 @@ export async function getUserEncryptedSeedController(req: AuthenticatedRequest, 
     }
 
     try {
-        const seed = await getEncryptedSeedService(user.id);    
+        const id = await getIdByUsername(user.username);
+        if (!id) {
+            res.status(404).json({
+                message: 'User not found',
+                success: false
+            });
+            return;
+        }
+        if (id !== user.id) {
+            res.status(403).json({
+                message: 'Forbidden',
+                success: false
+            });
+            return;
+        }
+        const seed = await getEncryptedSeedService(id);    
         
         res.status(200).json({ 
             message: 'Encrypted seed retrieved successfully',

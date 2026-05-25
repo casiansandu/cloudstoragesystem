@@ -13,7 +13,7 @@ export async function checkRootFolderExistsController(
     }
     let id = "";
     try {
-        id = await getRootFolderIdService(user_id);
+        id = (await getRootFolderIdService(user_id)).root_folder_id;
     } catch (error) {
         id = "";
     }

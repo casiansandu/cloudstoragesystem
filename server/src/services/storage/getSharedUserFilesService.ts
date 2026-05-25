@@ -1,14 +1,12 @@
 import db from "../../db/db";
 import { and, eq, ne, or, sql } from "drizzle-orm";
 import { files, userAccess } from "../../db/schema";
-import { isUuidV4 } from "../../utils/validators";
 
 async function getSharedUserFilesService(
     userId: string
 ): Promise<Array<{ id: string; encrypted_name_data: string; encrypted_file_key: string }>> {
-
-    if (!isUuidV4(userId)) {
-        throw new Error('Invalid user ID');
+    if (!userId) {
+        throw new Error("User not found");
     }
 
     try {

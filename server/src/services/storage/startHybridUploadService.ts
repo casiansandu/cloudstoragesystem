@@ -1,8 +1,7 @@
 import db from "../../db/db";
 import { getStoragePath } from "../../utils/getStoragePath";
 import fs from 'node:fs/promises';
-import { and, eq } from 'drizzle-orm';
-import { files, folders, userAccess } from '../../db/schema';
+import { files, userAccess } from '../../db/schema';
 
 async function startHybridUploadService(
     enc_name: string,
@@ -14,16 +13,6 @@ async function startHybridUploadService(
 ): Promise<{ file_id: string, access_id: string }> {
     
     return db.transaction(async (t) => {
-        const [folder] = await t
-            .select({ id: folders.id })
-            .from(folders)
-            .where(and(eq(folders.id, folder_id), eq(folders.ownerId, userId)))
-            .limit(1);
-
-        if (!folder) {
-            throw new Error('Folder not found or not owned by user');
-        }
-
         // Legacy SQL: INSERT INTO files (...) VALUES (...) RETURNING id
         const [newFile] = await t
             .insert(files)
