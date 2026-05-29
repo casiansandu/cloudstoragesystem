@@ -1,6 +1,6 @@
 import config from "../../../config/config";
 import type { EncryptedUserFile, EncryptedUserFileNoKey, ManifestData } from "../../utils/apiTypes";
-import { decrypt, deriveChunkKey, hexToBuffer } from "../../../utils/crypto";
+import { bufferToHex, decrypt, deriveChunkKey, hexToBuffer } from "../../../utils/crypto";
 import { fetchChunk } from "../../components/DownloadFileFeature/downloadFile";
 import { expandKeyForData, expandKeyForManifest } from "./cryptoKeys";
 
@@ -12,6 +12,13 @@ type SessionFileKeyEntry = {
 type GetManifestData = (fileId: string, fileManifestKey: Uint8Array) => Promise<ManifestData>;
 
 type GetXwingKeyForFile = (fileId: string) => Promise<Uint8Array>;
+
+type EncryptedSharedFile = {
+  id: string;
+  encrypted_name_data: string;
+  encrypted_key_data?: string;
+  encrypted_file_key?: string;
+};
 
 export const getFilesInFolder = async (
   folderId: string,
@@ -58,11 +65,15 @@ export const getSharedFiles = async (
         throw new Error("Failed to fetch shared files: " + data.message);
       }
 
-      const temp_files = data.data.files;
+      const temp_files = data.data.files as EncryptedSharedFile[];
       const files_to_return: EncryptedUserFileNoKey[] = [];
       for (const file of temp_files) {
+        const encrypted_key_data = file.encrypted_key_data ?? file.encrypted_file_key;
+        if (!encrypted_key_data) {
+          throw new Error("Missing encrypted key data for shared file: " + file.id);
+        }
         sessionFileKeys.set(file.id, {
-          encrypted_file_key: file.encrypted_file_key,
+          encrypted_file_key: encrypted_key_data,
           temp_decrypted_file_key: null,
         });
         files_to_return.push({ id: file.id, encrypted_name_data: file.encrypted_name_data });
@@ -70,6 +81,41 @@ export const getSharedFiles = async (
 
       return files_to_return;
     });
+
+  return files;
+};
+
+export const getSharedFilesInFolder = async (
+  folderId: string,
+  sessionFileKeys: Map<string, SessionFileKeyEntry>,
+) => {
+  const res = await fetch(`${config.BACKENDURL}/folders/${folderId}/shared/files`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  const data = await res.json();
+
+  if (!data.success) {
+    throw new Error("Failed to fetch shared files in folder: " + data.message);
+  }
+
+  const files_with_keys = data.data.files as EncryptedSharedFile[];
+  for (const file of files_with_keys) {
+    const encrypted_key_data = file.encrypted_key_data ?? file.encrypted_file_key;
+    if (!encrypted_key_data) {
+      throw new Error("Missing encrypted key data for shared file: " + file.id);
+    }
+    sessionFileKeys.set(file.id, {
+      encrypted_file_key: encrypted_key_data,
+      temp_decrypted_file_key: null,
+    });
+  }
+
+  const files = files_with_keys.map(file => ({
+    id: file.id,
+    encrypted_name_data: file.encrypted_name_data,
+  })) as EncryptedUserFileNoKey[];
 
   return files;
 };

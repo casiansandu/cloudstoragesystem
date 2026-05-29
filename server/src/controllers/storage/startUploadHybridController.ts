@@ -1,6 +1,7 @@
 import { ApiErrorResponse, ApiSuccessResponse, StartHybridFileUploadRequest } from "../../types";
 import startHybridUploadService from "../../services/storage/startHybridUploadService";
 import { Response } from "express";
+import { getFolderAccessForUserService } from "../../services/folders/getFolderAccessForUserService";
 import { isUuidV4 } from "../../utils/validators";
 
 interface StartUploadDataResult {
@@ -41,6 +42,11 @@ export async function startHybridUploadController(
     }
     
     try {
+        const access = await getFolderAccessForUserService(id, folder_id);
+        if (access.accessType !== "owner" && !access.permissions.can_upload) {
+            res.status(403).json({ message: 'Access denied, missing upload permission.', success: false });
+            return;
+        }
 
         const { file_id, access_id } = await startHybridUploadService(
             name, 
@@ -54,6 +60,17 @@ export async function startHybridUploadController(
         res.status(200).json({ message: 'Upload started', success: true, data: { file_id, access_id } });
         return;
     } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to start upload";
+        if (message === "Folder not found") {
+            res.status(404).json({ message, success: false });
+            return;
+        }
+
+        if (message === "Access denied") {
+            res.status(403).json({ message, success: false });
+            return;
+        }
+
         console.error('Start hybrid upload failed:', error);
         res.status(500).json({ message: 'Unable to start upload', success: false });
         return;

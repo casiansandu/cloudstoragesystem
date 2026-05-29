@@ -4,7 +4,7 @@ import { files, userAccess } from '../../db/schema';
 
 export default async function getFilesInfoByFolderService(user_id: string, folder_id: string): Promise<{ id: string, encrypted_name_data: string, encrypted_key_data: string }[]> {
 
-    // Legacy SQL: SELECT f.id, f.encrypted_name_data, ua.encrypted_file_key AS encrypted_key_data FROM files f JOIN user_access ua ON f.id = ua.file_id WHERE f.folder_id = $1 AND ua.user_id = $2 and ua.mlkem_ciphertext IS NULL
+    
     const result = await db
         .select({
             id: files.id,
@@ -16,10 +16,20 @@ export default async function getFilesInfoByFolderService(user_id: string, folde
         .where(
             and(
                 eq(files.folderId, folder_id),
-                eq(userAccess.userId, user_id),
                 isNull(userAccess.mlkemCiphertext)
             )
         );
 
-    return result;
+    const uniqueFiles = new Map();
+    for (const row of result) {
+        if (!uniqueFiles.has(row.id)) {
+            uniqueFiles.set(row.id, {
+                id: row.id,
+                encrypted_name_data: row.encrypted_name_data ?? '',
+                encrypted_key_data: row.encrypted_key_data,
+            });
+        }
+    }
+
+    return Array.from(uniqueFiles.values());
 }

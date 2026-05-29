@@ -1,6 +1,5 @@
-import { useState } from 'react';
-import config from '../../config/config';
 import { useGlobalWorker } from '../context/WorkerContext';
+import Button from './Button';
 
 interface CreateFolderButtonProps {
   currentFolderId: string;
@@ -27,12 +26,12 @@ const CreateFolderButton = ({ currentFolderId, onFolderCreated }: CreateFolderBu
   };
 
   return (
-    <div>
-      <h4>Create Folder</h4>
-      <div style={{ marginBottom: '10px' }}>
-        <button onClick={handleCreateFolder}>
-          Create New Folder
-        </button>
+    <div className="action-card">
+      <div className="action-title">New folder</div>
+      <div className="action-row">
+        <Button func={handleCreateFolder} color="secondary">
+          Create folder
+        </Button>
       </div>
     </div>
   );

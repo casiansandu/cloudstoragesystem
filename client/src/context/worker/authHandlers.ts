@@ -20,6 +20,7 @@ import { sha3_256 } from "@noble/hashes/sha3.js";
 import { hkdf } from "@noble/hashes/hkdf.js";
 import { scryptAsync } from "@noble/hashes/scrypt.js";
 import { createFolderForUser, getRootFolderId } from "./folderHandlers";
+import { expandKeyForName } from "./cryptoKeys";
 
 export type UserStateUpdate = {
   user_rsa_private: CryptoKey;
@@ -74,15 +75,15 @@ export const initializeUserData = async (
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   })
-    .then((res) => res.json() as Promise<GetUserKeysResponse>)
-    .then(async (data) => {
-      if (!data.success) {
-        throw new Error(data.message);
-      }
-      console.log("Fetched user keys");
+  .then((res) => res.json() as Promise<GetUserKeysResponse>)
+  .then(async (data) => {
+    if (!data.success) {
+      throw new Error(data.message);
+    }
+    console.log("Fetched user keys");
 
-      return data.data;
-    });
+    return { kdf_salt: data.data.kdf_salt, encrypted_user_rsa_private: data.data.encrypted_user_rsa_private, user_rsa_public: data.data.user_rsa_public };
+  });
 
   const user_master_key = await scryptAsync(
     new TextEncoder().encode(password),
@@ -214,10 +215,11 @@ export const initializeUserData = async (
   } else {
     console.log("No root folder found for user, creating one...");
     root_folder_key = await generateMasterKey() as Uint8Array;
-    const encrypted_name_data = await encrypt(new TextEncoder().encode("root"), root_folder_key as BufferSource);
+    const encrypted_name_data = await encrypt(new TextEncoder().encode("root"), expandKeyForName(root_folder_key) as BufferSource);
     const encrypted_root_folder_key = await encrypt(root_folder_key as BufferSource, user_ark as BufferSource);
     await createFolderForUser(
       concatUint8(encrypted_root_folder_key.nonce, encrypted_root_folder_key.ciphertext),
+      null,
       null,
       concatUint8(encrypted_name_data.nonce, encrypted_name_data.ciphertext)
     );
@@ -335,15 +337,15 @@ export const registerUser = async (
   const encrypted_ark = await encrypt(ark, user_master_key as BufferSource);
   const encryptedPrivateKey = await encrypt(privateKey, user_master_key as BufferSource);
 
-  const root_folder_key = hkdf(
-    sha3_256,
-    seed,
-    undefined,
-    hexToBuffer("root-folder-key-v1"),
-    32
-  );
+  // const root_folder_key = hkdf(
+  //   sha3_256,
+  //   seed,
+  //   undefined,
+  //   hexToBuffer("root-folder-key-v1"),
+  //   32
+  // );
 
-  await encrypt(root_folder_key as BufferSource, user_master_key as BufferSource);
+  // await encrypt(root_folder_key as BufferSource, user_master_key as BufferSource);
 
   await post_register(
     username,
@@ -351,10 +353,7 @@ export const registerUser = async (
     salt,
     verifier,
     kdf_salt,
-    concatUint8(
-      encryptedPrivateKey.nonce,
-      encryptedPrivateKey.ciphertext,
-    ),
+    concatUint8(encryptedPrivateKey.nonce, encryptedPrivateKey.ciphertext),
     new Uint8Array(publicKey),
     concatUint8(mlkem_public, x25519_public),
     concatUint8(encrypted_seed.nonce, encrypted_seed.ciphertext),

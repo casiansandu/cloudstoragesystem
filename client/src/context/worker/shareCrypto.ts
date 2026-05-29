@@ -82,6 +82,57 @@ export const getXwingKeyForFile = async (
   return xwing_key;
 };
 
+export const getXwingKeyForFolder = async (
+  folder_id: string,
+  user_mlkem_private: Uint8Array | null,
+  user_x25519_private: Uint8Array | null,
+  user_x25519_public: Uint8Array | null,
+) => {
+  if (!user_mlkem_private || !user_x25519_private || !user_x25519_public) {
+    throw new Error("User keys not initialized");
+  }
+
+  const { mlkem_ciphertext, x25519_ephemeral_public } = await fetch(
+    `${config.BACKENDURL}/folders/${folder_id}/hybrid_info`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    },
+  )
+    .then((res) => res.json())
+    .then((data) => {
+      if (!data.success) {
+        throw new Error("Failed to fetch hybrid key data for folder");
+      }
+
+      return {
+        mlkem_ciphertext: hexToBuffer(data.data.mlkem_ciphertext),
+        x25519_ephemeral_public: hexToBuffer(data.data.x25519_ephemeral_public),
+      };
+    });
+
+  const mlkem_shared_secret = ml_kem768.decapsulate(
+    mlkem_ciphertext,
+    user_mlkem_private,
+  );
+  const x25519_shared_secret = x25519.getSharedSecret(
+    user_x25519_private,
+    x25519_ephemeral_public,
+  );
+
+  const xwing_key = sha3_256(concatUint8(
+    new TextEncoder().encode("\\.//^\\"),
+    mlkem_shared_secret,
+    x25519_shared_secret,
+    x25519_ephemeral_public,
+    user_x25519_public,
+  ));
+
+  return xwing_key;
+};
+  
+
 export const generateHybridSharedKey = async (
   recipient_mlkem_public: Uint8Array,
   recipient_x25519_public: Uint8Array,

@@ -1,19 +1,27 @@
 import db from "../../db/db";
 import { getStoragePath } from "../../utils/getStoragePath";
 import fs from 'node:fs/promises';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { files, userAccess } from '../../db/schema';
 
-export default async function deleteFileService(user_id: string, file_id: string): Promise<void> {
+export default async function deleteFileService(
+    user_id: string,
+    file_id: string,
+    allow_shared_delete: boolean = false
+): Promise<void> {
     // Legacy SQL: SELECT * FROM files WHERE id = $1 AND owner_id = $2
     const [file] = await db
-        .select({ id: files.id })
+        .select({ id: files.id, owner_id: files.ownerId })
         .from(files)
-        .where(and(eq(files.id, file_id), eq(files.ownerId, user_id)))
+        .where(eq(files.id, file_id))
         .limit(1);
 
     if (!file) {
         throw new Error('File not found');
+    }
+
+    if (!allow_shared_delete && file.owner_id !== user_id) {
+        throw new Error('Access denied');
     }
 
     const folderPath = getStoragePath(file_id);

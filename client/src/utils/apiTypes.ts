@@ -63,6 +63,13 @@ export interface UserFolder {
   name: string;
 }
 
+export type FolderPermissions = {
+  can_download: boolean;
+  can_upload: boolean;
+  can_share: boolean;
+  can_delete: boolean;
+};
+
 export interface GetAllUserFilesResponse {
   message: string;
   data: {

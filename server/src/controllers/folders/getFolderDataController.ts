@@ -5,7 +5,7 @@ import { isUuidV4 } from "../../utils/validators";
 
 export async function getFolderDataController(
     req: AuthenticatedRequest,
-    res: Response<ApiSuccessResponse<{ folder_id: string, parent_id: string | null, encrypted_key_data: string, encrypted_name_data: string }> | ApiErrorResponse>
+    res: Response<ApiSuccessResponse<{ folder_id: string, parent_id: string | null, encrypted_key_data: string, encrypted_key_data_parent: string, encrypted_name_data: string }> | ApiErrorResponse>
 ): Promise<void> {
     const folder_id = req.params.folderId;
     const user_id = req.user?.id;
@@ -32,10 +32,22 @@ export async function getFolderDataController(
                 folder_id: folder_info.folder_id,
                 parent_id: folder_info.parent_id,
                 encrypted_key_data: folder_info.encrypted_key_data, 
+                encrypted_key_data_parent: folder_info.encrypted_key_data_parent,
                 encrypted_name_data: folder_info.encrypted_name_data ?? "" },
             success: true
         });
     } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to retrieve folder data';
+        if (message === 'Folder not found') {
+            res.status(404).json({ message, success: false });
+            return;
+        }
+
+        if (message === 'Access denied') {
+            res.status(403).json({ message, success: false });
+            return;
+        }
+
         console.error('Get folder data failed:', error);
         res.status(500).json({
             message: 'Unable to retrieve folder data',

@@ -9,6 +9,7 @@ import {
   decrypt,
   generateMasterKey,
   encrypt,
+  bufferToHex,
 } from "../../utils/crypto";
 import { concatUint8, gen_uuidv5 } from "../utils/funcs";
 import { sha256 } from "js-sha256";
@@ -20,20 +21,27 @@ import {
 } from "./worker/fileNameHandlers";
 import {
   createFolderForUser,
+  getFolderPermissions,
   getFolderNamesAndIds,
   getFolderParentIdAndName,
   getFoldersInFolder,
+  getSharedFolders,
+  getSharedFoldersInFolder,
+  getSharedFolderDecryptedNamesAndIds,
+  getSharedFolderDecryptedNamesAndIdsInFolder,
 } from "./worker/folderHandlers";
 import {
   getAndDecryptChunk,
   getChunkInfos,
   getFilesInFolder,
   getSharedFiles,
+  getSharedFilesInFolder,
 } from "./worker/fileHandlers";
 import {
   generateHybridSharedKey,
   getUserHybridKeys,
   getXwingKeyForFile as getXwingKeyForFileExternal,
+  getXwingKeyForFolder as getXwingKeyForFolderExternal,
 } from "./worker/shareCrypto";
 import {
   performFullLogin,
@@ -41,6 +49,7 @@ import {
   type UserStateUpdate,
 } from "./worker/authHandlers";
 import { uploadFile } from "./worker/uploadHandlers";
+import { expandKeyForName } from "./worker/cryptoKeys";
 
 let user_rsa_private: CryptoKey | null = null;
 let user_mlkem_public: Uint8Array | null = null;
@@ -52,6 +61,9 @@ let user_x25519_private: Uint8Array | null = null;
 let current_folder_key: Uint8Array | null = null;
 let current_folder_id: string | null = null;
 let user_ark: Uint8Array | null = null;
+
+// Maps folderId -> { decryptedKey, parentId }
+const sharedFolderCache = new Map<string, { key: Uint8Array; parentId: string }>();
 
 type keysData = {
   encrypted_file_key: string;
@@ -93,6 +105,15 @@ const getXwingKeyForFile = async (file_id: string) => {
   );
 };
 
+const getXwingKeyForFolder = async (folder_id: string) => {
+  return getXwingKeyForFolderExternal(
+    folder_id,
+    user_mlkem_private,
+    user_x25519_private,
+    user_x25519_public,
+  );
+};
+
 type HandlerResult = {
   result: any;
   transfer?: Transferable[];
@@ -127,7 +148,6 @@ const handlers: Record<string, (payload: any) => Promise<HandlerResult>> = {
   },
   UPLOAD_FILE: async (payload) => {
     if (!current_folder_id || !current_folder_key) {
-      console.log(1, { current_folder_id, current_folder_key });
       throw new Error("Current folder data not initialized");
     }
 
@@ -178,14 +198,35 @@ const handlers: Record<string, (payload: any) => Promise<HandlerResult>> = {
   },
   SET_CURRENT_FOLDER: async (payload) => {
     const folder_id: string = payload.folderId;
+    const direction= payload.direction;
 
     if (folder_id === current_folder_id) {
       return { result: { success: true } };
     }
 
-    current_folder_id = folder_id;
+    if (direction != "up" && direction != "down" && direction != "up_shared" && direction != "down_shared") {
+      throw new Error("Invalid navigation direction: " + direction);
+    }
+    let res;
+    res = await fetch(
+      `${config.BACKENDURL}/folders/${folder_id}/access_type`,
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      },
+    );
+    const get_access_type_res = (await res.json());
 
-    const res = await fetch(
+    if (!get_access_type_res.success) {
+      throw new Error("Failed to get folder access type: " + get_access_type_res.message);
+    }
+
+    const access_type = get_access_type_res.data.access_type;
+    console.log("moving ", direction, " into ", access_type, " folder");
+
+    let data;
+    res = await fetch(
       `${config.BACKENDURL}/folders/${folder_id}/data`,
       {
         method: "GET",
@@ -193,8 +234,8 @@ const handlers: Record<string, (payload: any) => Promise<HandlerResult>> = {
         credentials: "include",
       },
     );
-    const data = await res.json();
-
+    data = await res.json();
+    
     if (!data.success) {
       throw new Error("Failed to fetch folder key data: " + data.message);
     }
@@ -203,13 +244,128 @@ const handlers: Record<string, (payload: any) => Promise<HandlerResult>> = {
     const enc_folder_key_nonce = enc_folder_key_data.slice(0, 12);
     const enc_folder_key_ciphertext = enc_folder_key_data.slice(12);
 
-    current_folder_key = await decrypt(
-      enc_folder_key_ciphertext,
-      user_ark as BufferSource,
-      enc_folder_key_nonce,
-    );
+    if (access_type === "owner") {
+      
+      if (direction === "up" || direction === "up_shared") {
+        
+        const cachedFolder = sharedFolderCache.get(folder_id);
+        
+        if (cachedFolder) {
+          current_folder_key = cachedFolder.key;
+        } else {
+          current_folder_key = await decrypt(
+            enc_folder_key_ciphertext,
+            user_ark as BufferSource,
+            enc_folder_key_nonce,
+          );
+          
+          sharedFolderCache.set(folder_id, { 
+            key: current_folder_key, 
+            parentId: "" 
+          });
+        }
 
+      } else if ((direction === "down" || direction === "down_shared") && data.data.encrypted_key_data_parent) {
+        
+        const enc_parent_data = hexToBuffer(data.data.encrypted_key_data_parent);
+        
+        current_folder_key = await decrypt(
+          enc_parent_data.slice(12),
+          current_folder_key as BufferSource, 
+          enc_parent_data.slice(0, 12)
+        );
+
+        if (current_folder_id) {
+          sharedFolderCache.set(folder_id, { 
+            key: current_folder_key, 
+            parentId: current_folder_id 
+          });
+        }
+
+      } else {
+        current_folder_key = await decrypt(
+          enc_folder_key_ciphertext,
+          user_ark as BufferSource,
+          enc_folder_key_nonce,
+        );
+      }
+      
+    } else if (access_type === "shared") {
+      const xwing_key = await getXwingKeyForFolder(folder_id);
+      
+      current_folder_key = await decrypt(
+        enc_folder_key_ciphertext,
+        xwing_key as BufferSource,
+        enc_folder_key_nonce,
+      );
+
+      sharedFolderCache.set(folder_id, { key: current_folder_key, parentId: "" });
+
+     } else if (access_type === "shared_subfolder") {
+      
+      if (direction === "down_shared" || direction === "down") {
+        
+        current_folder_key = await decrypt(
+          enc_folder_key_ciphertext,
+          current_folder_key as BufferSource,
+          enc_folder_key_nonce,
+        );
+        
+        sharedFolderCache.set(folder_id, { 
+          key: current_folder_key, 
+          parentId: current_folder_id as string 
+        });
+
+      } else if (direction === "up_shared" || direction === "up") {
+        
+        const cachedFolder = sharedFolderCache.get(folder_id);
+        
+        if (!cachedFolder) {
+           throw new Error("Shared folder key not found in memory. Please navigate from the shared root.");
+        }
+        
+        current_folder_key = cachedFolder.key;
+      }
+      
+    } else {
+      throw new Error("Unknown folder access type: " + access_type);
+    }
+
+    current_folder_id = folder_id;
     return { result: { success: true } };
+  },
+  HAS_ACCESS_TO_FOLDER: async (payload) => {
+    if (!current_folder_key) {
+      throw new Error("Current folder key not initialized");
+    }
+    let folder_id: string = payload.folderId;
+
+    if (folder_id == "") {
+      return { result: { hasAccess: false} };
+    }
+
+    if (folder_id === current_folder_id) {
+      return { result: { hasAccess: true } };
+    }
+    
+    try {
+      const res = await fetch(
+        `${config.BACKENDURL}/hasaccess/${folder_id}/`,
+        {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+        },
+      );
+      const data = await res.json();
+      if (!data.success) {
+        return { result: { hasAccess: false } };
+      }
+      return { result: { hasAccess: true } };
+    } catch (error) {
+      console.error("Error checking folder access:", error);
+      return { result: { hasAccess: false } };
+    }
   },
   GET_FOLDER_PARENT_ID_AND_NAME: async (payload) => {
     if (!current_folder_key) {
@@ -240,6 +396,23 @@ const handlers: Record<string, (payload: any) => Promise<HandlerResult>> = {
     const folders = await getFoldersInFolder(folder_id);
 
     return { result: { folders } };
+  },
+  GET_SHARED_FOLDERS: async () => {
+
+    const folders: EncryptedUserFolder[] = await getSharedFolders();
+
+    return { result: { folders } };
+
+  },
+  GET_SHARED_FOLDERS_IN_FOLDER: async (payload) => {
+    const folders: EncryptedUserFolder[] = await getSharedFoldersInFolder(payload.folderId);
+
+    return { result: { folders } };
+  },
+  GET_PERMISSIONS_FOR_FOLDER: async (payload) => {
+    const permissions = await getFolderPermissions(payload.folderId);
+
+    return { result: { permissions } };
   },
   GET_FILES_IN_FOLDER: async (payload) => {
     if (!current_folder_key) {
@@ -290,6 +463,50 @@ const handlers: Record<string, (payload: any) => Promise<HandlerResult>> = {
 
     return { result: { files } };
   },
+  GET_SHARED_FILES_IN_FOLDER: async (payload) => {
+    if (!current_folder_key) {
+      throw new Error("Current folder key not initialized");
+    }
+
+    const files = await getSharedFilesInFolder(
+      payload.folderId,
+      sessionFileKeys,
+    );
+
+    return { result: { files } };
+  },
+  GET_SHARED_FOLDER_DECRYPTED_NAMES_AND_IDS: async (payload) => {
+    
+    const raw_folder_data: EncryptedUserFolder[] = payload.folders;
+
+    if (!raw_folder_data || raw_folder_data.length === 0) {
+      return { result: { folders: [] } };
+    }
+    const folders = await getSharedFolderDecryptedNamesAndIds(
+      raw_folder_data,
+      getXwingKeyForFolder,
+    );
+
+    return { result: { folders } };
+  },
+  GET_SHARED_FOLDER_DECRYPTED_NAMES_AND_IDS_IN_FOLDER: async (payload) => {
+    if (!current_folder_key) {
+      throw new Error("Current folder key not initialized");
+    }
+
+    const raw_folder_data: EncryptedUserFolder[] = payload.folders;
+
+    if (!raw_folder_data || raw_folder_data.length === 0) {
+      return { result: { folders: [] } };
+    }
+
+    const folders = await getSharedFolderDecryptedNamesAndIdsInFolder(
+      raw_folder_data,
+      current_folder_key,
+    );
+
+    return { result: { folders } };
+  },
   GET_FOLDER_NAMES_AND_IDS: async (payload) => {
     if (!current_folder_key) {
       throw new Error("Current folder key not initialized");
@@ -301,13 +518,10 @@ const handlers: Record<string, (payload: any) => Promise<HandlerResult>> = {
       return { result: { folders: [] } };
     }
 
-    if (!user_ark) {
-      throw new Error("User ark not initialized");
-    }
-
+    // Pass current_folder_key instead of user_ark!
     const folders = await getFolderNamesAndIds(
       raw_folder_data,
-      user_ark,
+      current_folder_key, 
     );
 
     return { result: { folders } };
@@ -317,20 +531,62 @@ const handlers: Record<string, (payload: any) => Promise<HandlerResult>> = {
 
     return { result: { files } };
   },
+  GET_SHARED_FOLDER_PARENT_ID_AND_NAME: async () => {
+    if (!current_folder_id) throw new Error("Current folder ID is null");
+
+    const cachedData = sharedFolderCache.get(current_folder_id);
+    
+    if (!cachedData || !cachedData.parentId) {
+      return { result: { parentId: "", parentName: "" } };
+    }
+
+    const parentId = cachedData.parentId;
+    const parentCache = sharedFolderCache.get(parentId);
+
+    if (!parentCache) {
+      console.warn("Parent folder key missing from cache. User likely refreshed the page.");
+      return { result: { parentId: parentId, parentName: "Shared Folder (Return to Root)" } };
+    }
+
+    const res = await fetch(`${config.BACKENDURL}/folders/${parentId}/data`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    });
+    
+    const data = await res.json();
+
+    if (!data.success) throw new Error("Failed to fetch parent folder data");
+
+    const enc_parent_name_data = hexToBuffer(data.data.encrypted_name_data);
+    
+    const parentName = new TextDecoder().decode(await decrypt(
+      enc_parent_name_data.slice(12),
+      expandKeyForName(parentCache.key) as BufferSource,
+      enc_parent_name_data.slice(0, 12)
+    ));
+
+    return { result: { parentId, parentName } };
+  },
   CREATE_FOLDER: async (payload) => {
-    if (!current_folder_key) {
-      throw new Error("Current folder key not initialized");
+    if (!current_folder_key || !current_folder_id) {
+      throw new Error("Current folder key or id not initialized");
     }
 
     const folder_name: string = payload.name;
-    const parent_folder_id: string | null = current_folder_id;
+    const parent_folder_id: string = current_folder_id;
     const new_folder_key = await generateMasterKey() as Uint8Array;
 
-    const encrypted_folder_key_data = await encrypt(new_folder_key as BufferSource, user_ark as BufferSource);
-    const encrypted_folder_name_data = await encrypt(folder_name, new_folder_key as BufferSource);
+    console.log(bufferToHex(new_folder_key as BufferSource));
+
+    const encrypted_folder_key_data_ark = await encrypt(new_folder_key as BufferSource, user_ark as BufferSource);
+    const encrypted_folder_key_data_parent = await encrypt(new_folder_key as BufferSource, current_folder_key as BufferSource);
+
+    const encrypted_folder_name_data = await encrypt(folder_name, expandKeyForName(new_folder_key) as BufferSource);
 
     const new_folder_id = await createFolderForUser(
-      concatUint8(encrypted_folder_key_data.nonce, encrypted_folder_key_data.ciphertext),
+      concatUint8(encrypted_folder_key_data_ark.nonce, encrypted_folder_key_data_ark.ciphertext),
+      concatUint8(encrypted_folder_key_data_parent.nonce, encrypted_folder_key_data_parent.ciphertext),
       parent_folder_id,
       concatUint8(encrypted_folder_name_data.nonce, encrypted_folder_name_data.ciphertext)
     );
@@ -351,7 +607,7 @@ const handlers: Record<string, (payload: any) => Promise<HandlerResult>> = {
         recipient_x25519_public,
       );
 
-    console.log("Xwing key generated for sharing");
+    console.log("Xwing key generated for sharing file");
 
     const encrypted_file_key = sessionFileKeys.get(
       payload.fileId,
@@ -379,9 +635,98 @@ const handlers: Record<string, (payload: any) => Promise<HandlerResult>> = {
 
     return { result: { success: true } };
   },
+  SHARE_FOLDER: async (payload) => {
+
+    if (!current_folder_key) {
+      throw new Error("Current folder key not initialized");
+    }
+
+    const folder_id: string = payload.folderId;
+    const recipient_username: string = payload.recipientUsername;
+    const share_duration: number = payload.shareDuration;
+    let permissions = payload.permissions;
+
+    permissions.can_download = true
+
+    const { recipient_x25519_public, recipient_mlkem_public } = await getUserHybridKeys(recipient_username);
+
+    const { xwing_key, x25519_ephemeral_public, mlkem_ciphertext } =
+      await generateHybridSharedKey(
+        recipient_mlkem_public,
+        recipient_x25519_public,
+      );
+
+    console.log("Xwing key generated for sharing file");
+
+    const encrypted_folder_key_response = await fetch(
+      `${config.BACKENDURL}/folders/${folder_id}/encrypted_key`,
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      },
+    ).then(res => res.json());
+
+    if (!encrypted_folder_key_response.success) {
+      throw new Error("Failed to fetch encrypted folder key: " + encrypted_folder_key_response.message);
+    }
+
+    const { encrypted_key_data } = encrypted_folder_key_response.data;
+
+    const encrypted_folder_key_data = hexToBuffer(encrypted_key_data);
+    const enc_folder_key_nonce = encrypted_folder_key_data.slice(0, 12);
+    const enc_folder_key_ciphertext = encrypted_folder_key_data.slice(12);
+
+    const folder_key = await decrypt(
+      enc_folder_key_ciphertext,
+      user_ark as BufferSource,
+      enc_folder_key_nonce,
+    );
+
+    const encrypted_folder_key = await encrypt(folder_key as BufferSource, xwing_key as BufferSource);
+    
+    const shareData = await fetch(`${config.BACKENDURL}/folders/share`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        folder_id,
+        recipient_username,
+        encrypted_folder_key: bufferToHex(concatUint8(encrypted_folder_key.nonce, encrypted_folder_key.ciphertext) as BufferSource),
+        share_duration,
+        mlkem_ciphertext: bufferToHex(mlkem_ciphertext as BufferSource),
+        x25519_ephemeral_public: bufferToHex(x25519_ephemeral_public as BufferSource),
+        permissions,
+      }),
+    }).then(res => res.json());
+
+    if (!shareData.success) {
+      throw new Error("Failed to share folder: " + shareData.message);
+    }
+
+    console.log("Folder shared successfully with access id" + shareData.data.folder_access_id);
+
+    return { result: { success: true } };
+  },
+  DELETE_FOLDER: async (payload) => {
+    const folder_id: string = payload.folderId;
+    const res = await fetch(`${config.BACKENDURL}/folders/${folder_id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    });
+
+    const data = await res.json();
+
+    if (!data.success) {
+      throw new Error("Failed to delete folder: " + data.message);
+    }
+    sharedFolderCache.delete(folder_id);
+
+    return { result: { success: true } };
+  },
   GET_CURRENT_FOLDER_ID: async () => {
     if (!current_folder_id) {
-      console.log(2, { current_folder_id });
       throw new Error("Current folder data not initialized");
     }
 
@@ -396,6 +741,8 @@ const handlers: Record<string, (payload: any) => Promise<HandlerResult>> = {
     user_ark = null;
     current_folder_key = null;
     current_folder_id = null;
+    sharedFolderCache.clear();
+
     sessionFileKeys.clear();
 
     await fetch(`${config.BACKENDURL}/auth/logout`, {
@@ -417,27 +764,33 @@ const handlers: Record<string, (payload: any) => Promise<HandlerResult>> = {
   },
 };
 
-globalThis.onmessage = async (e: MessageEvent) => {
+let messageQueue: Promise<void> = Promise.resolve();
+
+globalThis.onmessage = (e: MessageEvent) => {
   const { id, type, payload } = e.data;
 
-  try {
-    const handler = handlers[type];
-    if (!handler) {
-      throw new Error(`Unknown command: ${type}`);
-    }
+  messageQueue = messageQueue.then(async () => {
+    try {
+      const handler = handlers[type];
+      if (!handler) {
+        throw new Error(`Unknown command: ${type}`);
+      }
 
-    const { result, transfer } = await handler(payload);
-    if (transfer && transfer.length > 0) {
-      self.postMessage({ id, type: "SUCCESS", result }, { transfer });
-    } else {
-      self.postMessage({ id, type: "SUCCESS", result });
+      const { result, transfer } = await handler(payload);
+      if (transfer && transfer.length > 0) {
+        self.postMessage({ id, type: "SUCCESS", result }, { transfer });
+      } else {
+        self.postMessage({ id, type: "SUCCESS", result });
+      }
+    } catch (err: any) {
+      self.postMessage({
+        id,
+        type: "ERROR",
+        result: { success: false },
+        error: err.message,
+      });
     }
-  } catch (err: any) {
-    self.postMessage({
-      id,
-      type: "ERROR",
-      result: { success: false },
-      error: err.message,
-    });
-  }
+  }).catch((queueError) => {
+    console.error("Critical worker queue failure:", queueError);
+  });
 };

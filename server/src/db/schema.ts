@@ -7,7 +7,8 @@ import {
   bigint, 
   integer, 
   date,
-  AnyPgColumn 
+  AnyPgColumn, 
+  boolean
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -28,15 +29,6 @@ export const users = pgTable("users", {
   encryptedArk: text("encrypted_ark").notNull(),
 });
 
-// 2. FOLDERS
-export const folders = pgTable("folders", {
-  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
-  // Using AnyPgColumn to prevent the "implicitly has type any" circular reference error
-  parentId: uuid("parent_id").references((): AnyPgColumn => folders.id), 
-  encryptedNameData: text("encrypted_name_data"),
-  encryptedKeyData: text("encrypted_key_data").notNull(),
-  ownerId: uuid("owner_id").notNull().references(() => users.id), 
-});
 
 // 3. FILES
 export const files = pgTable("files", {
@@ -59,4 +51,32 @@ export const userAccess = pgTable("user_access", {
   createdAt: date("created_at").notNull().default(sql`CURRENT_DATE`),
   x25519EphemeralPublic: text("x25519_ephemeral_public"),
   mlkemCiphertext: text("mlkem_ciphertext"),
+});
+
+// 2. FOLDERS
+export const folders = pgTable("folders", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  // Using AnyPgColumn to prevent the "implicitly has type any" circular reference error
+  parentId: uuid("parent_id").references((): AnyPgColumn => folders.id), 
+  encryptedNameData: text("encrypted_name_data"),
+  encryptedKeyDataArk: text("encrypted_key_data_ark").notNull(),
+  encryptedKeyDataParentFolder: text("encrypted_key_data_parent_folder").notNull(),
+  ownerId: uuid("owner_id").notNull().references(() => users.id), 
+});
+
+// 5. FOLDER ACCESS
+export const folderAccess = pgTable("folder_access", {
+  accessId: uuid("access_id").primaryKey().default(sql`uuid_generate_v4()`),
+  folderId: uuid("folder_id").notNull().references(() => folders.id),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  encryptedFolderKey: text("encrypted_folder_key").notNull(),
+  shareDuration: integer("share_duration").notNull(),
+  // Changed defaultNow() to sql`CURRENT_DATE` to match your SQL "date" type exactly
+  createdAt: date("created_at").notNull().default(sql`CURRENT_DATE`),
+  x25519EphemeralPublic: text("x25519_ephemeral_public"),
+  mlkemCiphertext: text("mlkem_ciphertext"),
+  canDownload: boolean("can_download").notNull().default(false),
+  canUpload: boolean("can_upload").notNull().default(false),
+  canShare: boolean("can_share").notNull().default(false),
+  canDelete: boolean("can_delete").notNull().default(false),
 });

@@ -9,10 +9,12 @@ async function hasAccessToFileService(user_id: string, file_id: string): Promise
         .from(userAccess)
         .where(and(eq(userAccess.userId, user_id), eq(userAccess.fileId, file_id)))
         .limit(1);
+    
     if (!access_record) {
-        throw new Error('Access record not found for this user and file');
+        return "";
+    } else {
+        return access_record.access_id;
     }
-    return access_record.access_id;
 }
 
 export default hasAccessToFileService;

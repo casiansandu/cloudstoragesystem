@@ -15,6 +15,34 @@
       "when": 1779132690959,
       "tag": "0001_orange_unicorn",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779728735684,
+      "tag": "0002_quiet_firelord",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779733490910,
+      "tag": "0003_square_alex_power",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779737068625,
+      "tag": "0004_parched_living_mummy",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779739459401,
+      "tag": "0005_sleepy_wiccan",
+      "breakpoints": true
     }
   ]
 }

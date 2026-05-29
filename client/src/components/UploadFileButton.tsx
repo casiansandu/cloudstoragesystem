@@ -1,5 +1,6 @@
 import { useState, type ChangeEvent } from 'react';
 import { useGlobalWorker } from '../context/WorkerContext';
+import Button from './Button';
 
 interface UploadFileButtonProps {
   onUploadSuccess?: () => void;
@@ -10,12 +11,16 @@ const EncryptedUpload = ({ onUploadSuccess } : UploadFileButtonProps) => {
     const worker = useGlobalWorker();
     
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [selectedFileName, setSelectedFileName] = useState<string>("No file selected");
     const [status, setStatus] = useState<string>("");
 
     const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
         if (event.target.files && event.target.files.length > 0) {
             setSelectedFile(event.target.files[0]);
+            setSelectedFileName(event.target.files[0].name);
             setStatus(""); 
+        } else {
+            setSelectedFileName("No file selected");
         }
     };
 
@@ -48,23 +53,26 @@ const EncryptedUpload = ({ onUploadSuccess } : UploadFileButtonProps) => {
     };
 
     return (
-        <div>
-            <h4>Encrypt & Upload</h4>
-            
-            <div>
-                {/* File Input */}
-                <input type="file" onChange={onFileChange} />
-                
-                <br /><br />
-
-                <button onClick={onFileUpload}>
-                    Upload!
-                </button>
+        <div className="action-card">
+            <div className="action-title">Encrypt & upload</div>
+            <div className="action-row">
+                <label className="file-picker" htmlFor="upload-input">
+                    Browse file
+                </label>
+                <input
+                    id="upload-input"
+                    className="file-input"
+                    type="file"
+                    onChange={onFileChange}
+                />
+                <div className="file-name" title={selectedFileName}>
+                    {selectedFileName}
+                </div>
+                <Button func={onFileUpload} color="primary">
+                    Upload
+                </Button>
             </div>
-            
-            {status && <p style={{ fontWeight: 'bold', color: 'blue' }}>Status: {status}</p>}
-            
-            
+            {status && <div className="status-text">Status: {status}</div>}
         </div>
     );
 };
