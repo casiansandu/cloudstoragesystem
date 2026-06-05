@@ -1,11 +1,9 @@
 import config from "../../../config/config";
-import srp from "secure-remote-password/client";
 import type {
   GetUserKeysResponse,
-  SrpLoginStartResponse,
-  SrpLoginVerifyResponse,
 } from "../../utils/apiTypes";
 import {
+  bufferToHex,
   decrypt,
   encrypt,
   generateAsymKeyPair,
@@ -13,14 +11,12 @@ import {
   hexToBuffer,
 } from "../../../utils/crypto";
 import { concatUint8 } from "../../utils/funcs";
-import post_register from "../../Register/registerUser";
 import { ml_kem768 } from "@noble/post-quantum/ml-kem.js";
 import { x25519 } from "@noble/curves/ed25519.js";
-import { sha3_256 } from "@noble/hashes/sha3.js";
-import { hkdf } from "@noble/hashes/hkdf.js";
 import { scryptAsync } from "@noble/hashes/scrypt.js";
 import { createFolderForUser, getRootFolderId } from "./folderHandlers";
 import { expandKeyForName } from "./cryptoKeys";
+import * as opaque from "@serenity-kit/opaque";
 
 export type UserStateUpdate = {
   user_rsa_private: CryptoKey;
@@ -34,7 +30,7 @@ export type UserStateUpdate = {
   user_ark: Uint8Array;
 };
 
-const feth_and_decrypt_user_ark = async (username: string, user_master_key: Uint8Array) => {
+const fetch_and_decrypt_user_ark = async (username: string, user_master_key: Uint8Array) => {
   const { nonce: enc_ark_nonce, enc_ark } = await fetch(
     `${config.BACKENDURL}/users/keys/encrypted_ark`,
     {
@@ -127,7 +123,7 @@ export const initializeUserData = async (
 
   console.log("RSA user keys initialized in worker.");
 
-  const user_ark = await feth_and_decrypt_user_ark(username, user_master_key);
+  const user_ark = await fetch_and_decrypt_user_ark(username, user_master_key); 
   console.log("User ARK decrypted");
 
   const { nonce: enc_seed_nonce, enc_seed } = await fetch(
@@ -249,34 +245,30 @@ export const performFullLogin = async (
   username: string,
   password: string,
 ): Promise<UserStateUpdate> => {
-  const { public: client_public, secret: client_secret } =
-    srp.generateEphemeral();
+  
+  const { clientLoginState, startLoginRequest } = opaque.client.startLogin({ password });
 
   const startRes = await fetch(`${config.BACKENDURL}/auth/login/start`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ username, client_public }),
+    body: JSON.stringify({ username, startLoginRequest }),
   });
 
-  const startData: SrpLoginStartResponse = await startRes.json();
+  const startData = await startRes.json();
   if (!startData.success) throw new Error(startData.message);
 
-  const loginSessionId = startData.data.loginSessionId;
+  const { loginResponse, loginSessionId } = startData.data;
 
-  const privateKey = srp.derivePrivateKey(
-    startData.data.salt,
-    username,
+  const loginResult = opaque.client.finishLogin({
+    clientLoginState,
+    loginResponse,
     password,
-  );
+  });
 
-  const clientSession = srp.deriveSession(
-    client_secret,
-    startData.data.server_public,
-    startData.data.salt,
-    username,
-    privateKey,
-  );
+  if (!loginResult) throw new Error("Login failed locally: Invalid password or corrupted envelope.");
+
+  const { finishLoginRequest } = loginResult;
 
   const verifyRes = await fetch(
     `${config.BACKENDURL}/auth/login/verify`,
@@ -285,20 +277,14 @@ export const performFullLogin = async (
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify({
-        client_session_proof: clientSession.proof,
+        finishLoginRequest,
         loginSessionId,
       }),
     },
   );
 
-  const verifyData: SrpLoginVerifyResponse = await verifyRes.json();
+  const verifyData = await verifyRes.json();
   if (!verifyData.success) throw new Error(verifyData.message);
-
-  srp.verifySession(
-    client_public,
-    clientSession,
-    verifyData.data.server_session_proof,
-  );
 
   return initializeUserData(username, password);
 };
@@ -308,9 +294,22 @@ export const registerUser = async (
   password: string,
   email: string,
 ) => {
-  const salt = srp.generateSalt();
-  const _privateKey = srp.derivePrivateKey(salt, username, password);
-  const verifier = srp.deriveVerifier(_privateKey);
+  const { clientRegistrationState, registrationRequest } = opaque.client.startRegistration({ password });
+
+  const initRes = await fetch(`${config.BACKENDURL}/auth/register/opq/init`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, registrationRequest }),
+  });
+  
+  const initData = await initRes.json();
+  if (!initData.success) throw new Error(initData.message);
+
+  const { registrationRecord } = opaque.client.finishRegistration({
+    clientRegistrationState,
+    registrationResponse: initData.data.registrationResponse,
+    password,
+  });
 
   const { publicKey, privateKey } = await generateAsymKeyPair();
   console.log("Generated key pair for user");
@@ -321,8 +320,7 @@ export const registerUser = async (
   const mlkem_seed = seed.slice(0, 64);
   const x25519_priv = seed.slice(64);
 
-  const { publicKey: mlkem_public } =
-    ml_kem768.keygen(mlkem_seed);
+  const { publicKey: mlkem_public } = ml_kem768.keygen(mlkem_seed);
   const x25519_public = x25519.getPublicKey(x25519_priv);
 
   const kdf_salt = crypto.getRandomValues(new Uint8Array(16));
@@ -337,27 +335,27 @@ export const registerUser = async (
   const encrypted_ark = await encrypt(ark, user_master_key as BufferSource);
   const encryptedPrivateKey = await encrypt(privateKey, user_master_key as BufferSource);
 
-  // const root_folder_key = hkdf(
-  //   sha3_256,
-  //   seed,
-  //   undefined,
-  //   hexToBuffer("root-folder-key-v1"),
-  //   32
-  // );
+  const finishRes = await fetch(`${config.BACKENDURL}/auth/register/opq/finish`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+    body: JSON.stringify({
+      username,
+      email,
+      registrationRecord, // 🚨 Replaces srp_salt and srp_verifier
+      kdf_salt: bufferToHex(kdf_salt as BufferSource),
+      user_rsa_public: bufferToHex(new Uint8Array(publicKey) as BufferSource),
+      encrypted_user_rsa_private: bufferToHex(concatUint8(encryptedPrivateKey.nonce, encryptedPrivateKey.ciphertext) as BufferSource),
+      public_keys_bundle: bufferToHex(concatUint8(mlkem_public, x25519_public) as BufferSource),
+      encrypted_seed: bufferToHex(concatUint8(encrypted_seed.nonce, encrypted_seed.ciphertext) as BufferSource),
+      encrypted_ark: bufferToHex(concatUint8(encrypted_ark.nonce, encrypted_ark.ciphertext) as BufferSource),
+    }),
+  });
 
-  // await encrypt(root_folder_key as BufferSource, user_master_key as BufferSource);
-
-  await post_register(
-    username,
-    email,
-    salt,
-    verifier,
-    kdf_salt,
-    concatUint8(encryptedPrivateKey.nonce, encryptedPrivateKey.ciphertext),
-    new Uint8Array(publicKey),
-    concatUint8(mlkem_public, x25519_public),
-    concatUint8(encrypted_seed.nonce, encrypted_seed.ciphertext),
-    concatUint8(encrypted_ark.nonce, encrypted_ark.ciphertext),
-  );
-
+  const finishData = await finishRes.json();
+  if (!finishData.success) {
+    throw new Error(`Registration failed: ${finishData.message}`);
+  }
 };

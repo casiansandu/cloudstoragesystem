@@ -1,15 +1,18 @@
 import express, { CookieOptions, Router } from 'express';
 import { noAuthMiddleware } from '../middleware/noAuthMiddleware';
-import { srpLoginStart, srpLoginVerify } from '../controllers/auth/srpLoginController';
-import { checkLoginStatus } from '../controllers/auth/checkLoggedInController';
-import srpRegisterController from '../controllers/auth/srpRegisterController';
+import { checkLoginStatus } from '../controllers/auth/access/checkLoggedInController';
+import srpRegisterController from '../controllers/auth/register/srpRegisterController';
+import { opaqueRegisterFinish, opaqueRegisterInit } from '../controllers/auth/register/opaqueRegisterController';
+import { opaqueLoginStart, opaqueLoginVerify } from '../controllers/auth/login/opaqueLoginController';
 
 const router: Router = express.Router();
 
+router.post('/register/opq/init', noAuthMiddleware, opaqueRegisterInit);
+router.post('/register/opq/finish', noAuthMiddleware, opaqueRegisterFinish);
 router.post('/register', noAuthMiddleware, srpRegisterController);
 
-router.post('/login/start', noAuthMiddleware, srpLoginStart);
-router.post('/login/verify', noAuthMiddleware, srpLoginVerify);
+router.post('/login/start', noAuthMiddleware, opaqueLoginStart);
+router.post('/login/verify', noAuthMiddleware, opaqueLoginVerify);
 
 router.get('/status', checkLoginStatus)
 

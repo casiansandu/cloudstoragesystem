@@ -16,7 +16,6 @@ type GetXwingKeyForFile = (fileId: string) => Promise<Uint8Array>;
 type EncryptedSharedFile = {
   id: string;
   encrypted_name_data: string;
-  encrypted_key_data?: string;
   encrypted_file_key?: string;
 };
 
@@ -68,12 +67,12 @@ export const getSharedFiles = async (
       const temp_files = data.data.files as EncryptedSharedFile[];
       const files_to_return: EncryptedUserFileNoKey[] = [];
       for (const file of temp_files) {
-        const encrypted_key_data = file.encrypted_key_data ?? file.encrypted_file_key;
-        if (!encrypted_key_data) {
-          throw new Error("Missing encrypted key data for shared file: " + file.id);
+        const encrypted_file_key = file.encrypted_file_key;
+        if (!encrypted_file_key) {
+          throw new Error("Missing encrypted file key for shared file: " + file.id);
         }
         sessionFileKeys.set(file.id, {
-          encrypted_file_key: encrypted_key_data,
+          encrypted_file_key: encrypted_file_key,
           temp_decrypted_file_key: null,
         });
         files_to_return.push({ id: file.id, encrypted_name_data: file.encrypted_name_data });
@@ -102,12 +101,12 @@ export const getSharedFilesInFolder = async (
 
   const files_with_keys = data.data.files as EncryptedSharedFile[];
   for (const file of files_with_keys) {
-    const encrypted_key_data = file.encrypted_key_data ?? file.encrypted_file_key;
-    if (!encrypted_key_data) {
-      throw new Error("Missing encrypted key data for shared file: " + file.id);
+    const encrypted_file_key = file.encrypted_file_key;
+    if (!encrypted_file_key) {
+      throw new Error("Missing encrypted file key for shared file: " + file.id);
     }
     sessionFileKeys.set(file.id, {
-      encrypted_file_key: encrypted_key_data,
+      encrypted_file_key: encrypted_file_key,
       temp_decrypted_file_key: null,
     });
   }

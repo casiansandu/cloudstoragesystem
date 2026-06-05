@@ -1,22 +1,22 @@
 import express, { Router } from 'express';
-import { createFolderController } from '../controllers/folders/createFolderController';
-import { getRootFolderIdController } from '../controllers/folders/getRootFolderIdController';
-import getFilesInfoByFolderController from '../controllers/files/getFilesInfoByFolderController';
+import { createFolderController } from '../controllers/folders/manage/createFolderController';
+import { getRootFolderIdController } from '../controllers/folders/info/getRootFolderIdController';
+import getFilesInfoByFolderController from '../controllers/files/info/getFilesInfoByFolderController';
 import authMiddleware from '../middleware/authMiddleware';
-import { getFoldersInfoByParentController } from '../controllers/folders/getFoldersInfoByParentController';
-import { checkRootFolderExistsController } from '../controllers/folders/checkRootFolderExists';
-import getFolderDataController from '../controllers/folders/getFolderDataController';
-import hasAccessToFolderController from '../controllers/folders/hasAccessToFolderController';
-import getFolderPermissionsController from '../controllers/folders/getFolderPermissionsController';
-import { shareFolderHybridController } from '../controllers/folders/shareFolderHybridController';
-import { getSharedFoldersController } from '../controllers/folders/getSharedFoldersController';
-import { getFolderHybridInfoController } from '../controllers/folders/getFolderHybridInfoController';
-import getFolderEncryptedKeyController from '../controllers/folders/getFolderEncryptedKeyController';
-import getFolderAccessTypeController from '../controllers/folders/getFolderAccessTypeController';
-import getSharedFilesInFolderController from '../controllers/files/getSharedFilesInFolderController';
-import getSharedFoldersInFolderController from '../controllers/folders/getSharedFoldersInFolderController';
-import getSharedFolderParentIdAndNameController from '../controllers/folders/getSharedFolderParentIdAndNameController';
-import deleteFolderController from '../controllers/folders/deleteFolderController';
+import { getFoldersInfoByParentController } from '../controllers/folders/info/getFoldersInfoByParentController';
+import { checkRootFolderExistsController } from '../controllers/folders/info/checkRootFolderExists';
+import getFolderDataController from '../controllers/folders/info/getFolderDataController';
+import hasAccessToFolderController from '../controllers/folders/access/hasAccessToFolderController';
+import getFolderPermissionsController from '../controllers/folders/access/getFolderPermissionsController';
+import { shareFolderHybridController } from '../controllers/folders/share/shareFolderHybridController';
+import { getSharedFoldersController } from '../controllers/folders/share/getSharedFoldersController';
+import { getFolderHybridInfoController } from '../controllers/folders/info/getFolderHybridInfoController';
+import getFolderEncryptedKeyController from '../controllers/folders/keys/getFolderEncryptedKeyController';
+import getFolderAccessTypeController from '../controllers/folders/access/getFolderAccessTypeController';
+import getSharedFilesInFolderController from '../controllers/files/share/getSharedFilesInFolderController';
+import getSharedFoldersInFolderController from '../controllers/folders/share/getSharedFoldersInFolderController';
+import getSharedFolderParentIdAndNameController from '../controllers/folders/share/getSharedFolderParentIdAndNameController';
+import deleteFolderController from '../controllers/folders/manage/deleteFolderController';
 
 
 

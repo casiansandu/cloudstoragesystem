@@ -57,7 +57,6 @@ export const Home = () => {
 
   const navigate = useNavigate();
 
-  // 🚨 Make it async
   const resetToVirtualRootState = useCallback(async () => {
     setRootView("root");
     setCurrentFolderParent({ id: "", name: "" });
@@ -145,10 +144,8 @@ const handleNavigateDownShared = async (folderId: string, folderName: string) =>
     const targetFolderId = currentFolderParent.id;
     const targetFolderName = currentFolderParent.name;
 
-    // 1. Move the worker UP first!
     await worker.setCurrentFolder(targetFolderId, "up_shared");
     
-    // 2. Now ask the worker for the new parent
     const parentResult = await worker.getSharedFolderParentIdAndName(currentFolder.id);
 
     if (!parentResult.parentId && parentResult.parentName === "") {
@@ -346,7 +343,6 @@ const handleNavigateDownShared = async (folderId: string, folderName: string) =>
           await writer.close();
           console.log("[Download] Download complete successfully.");
         } finally {
-          // THIS MUST ALWAYS RUN, even if decryption throws an error
           await worker.closeFile(file.id); 
         }
       } catch (error) {

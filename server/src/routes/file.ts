@@ -1,17 +1,17 @@
 import express, { Router } from 'express';
 
 import { authMiddleware } from '../middleware/authMiddleware';
-import { getAllUserFilesController } from '../controllers/storage/getAllUserFilesController';
-import { uploadController } from '../controllers/storage/uploadController';
-import getChunkController from '../controllers/storage/getChunkController';
-import deleteFileController from '../controllers/storage/deleteFileDBController';
-import isFileOwnerController from '../controllers/storage/checkOwnershipController';
-import getFileMasterKeyController from '../controllers/storage/getFileMasterKeyController';
-import hasAccessToFileController from '../controllers/storage/hasAccessToFileController';
-import { startHybridUploadController } from '../controllers/storage/startUploadHybridController';
-import { getHybridInfoController } from '../controllers/storage/getHybridUploadInfoController';
-import { shareFileHybridController } from '../controllers/storage/shareFileHybridController';
-import { getSharedUserFilesController } from '../controllers/storage/getSharedUserFilesController';
+import { getAllUserFilesController } from '../controllers/files/info/getAllUserFilesController';
+import { uploadController } from '../controllers/files/transfer/uploadController';
+import getChunkController from '../controllers/files/transfer/getChunkController';
+import deleteFileController from '../controllers/files/manage/deleteFileDBController';
+import isFileOwnerController from '../controllers/files/access/checkOwnershipController';
+import getFileMasterKeyController from '../controllers/files/keys/getFileMasterKeyController';
+import hasAccessToFileController from '../controllers/files/access/hasAccessToFileController';
+import { startHybridUploadController } from '../controllers/files/transfer/startUploadHybridController';
+import { getHybridInfoController } from '../controllers/files/transfer/getHybridUploadInfoController';
+import { shareFileHybridController } from '../controllers/files/share/shareFileHybridController';
+import { getSharedUserFilesController } from '../controllers/files/share/getSharedUserFilesController';
 
 const router: Router = express.Router();
 const rawParser = express.raw({ type: 'application/octet-stream', limit: '50mb' });

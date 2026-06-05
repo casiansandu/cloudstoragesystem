@@ -51,6 +51,8 @@ import {
 import { uploadFile } from "./worker/uploadHandlers";
 import { expandKeyForName } from "./worker/cryptoKeys";
 
+import api from "../api/index";
+
 let user_rsa_private: CryptoKey | null = null;
 let user_mlkem_public: Uint8Array | null = null;
 let user_mlkem_private: Uint8Array | null = null;
@@ -648,6 +650,40 @@ const handlers: Record<string, (payload: any) => Promise<HandlerResult>> = {
 
     permissions.can_download = true
 
+    const permissions_res = await fetch(
+      `${config.BACKENDURL}/folders/${folder_id}/permissions`,
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      }
+    );
+
+    const permissions_data = await permissions_res.json();
+
+    if (!permissions_data.success) {
+      throw new Error("Failed to fetch folder permissions: " + permissions_data.message);
+    }
+
+    if (!permissions_data.data.permissions.can_share) {
+      throw new Error("You don't have permission to share this folder.");
+    }
+
+    const access_type_res = await fetch(
+      `${config.BACKENDURL}/folders/${folder_id}/access_type`,
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      }
+    );
+
+    const access_type_data = await access_type_res.json();
+
+    if (!access_type_data.success) {
+      throw new Error("Failed to fetch folder access type: " + access_type_data.message);
+    }
+
     const { recipient_x25519_public, recipient_mlkem_public } = await getUserHybridKeys(recipient_username);
 
     const { xwing_key, x25519_ephemeral_public, mlkem_ciphertext } =
@@ -677,11 +713,30 @@ const handlers: Record<string, (payload: any) => Promise<HandlerResult>> = {
     const enc_folder_key_nonce = encrypted_folder_key_data.slice(0, 12);
     const enc_folder_key_ciphertext = encrypted_folder_key_data.slice(12);
 
-    const folder_key = await decrypt(
-      enc_folder_key_ciphertext,
-      user_ark as BufferSource,
-      enc_folder_key_nonce,
-    );
+    let folder_key: Uint8Array;
+    if (access_type_data.data.access_type === "owner") {
+      folder_key = await decrypt(
+        enc_folder_key_ciphertext,
+        user_ark as BufferSource,
+        enc_folder_key_nonce,
+      );
+    } else if (access_type_data.data.access_type === "shared") {
+      const xwing_key_personal = await getXwingKeyForFolder(folder_id);
+
+      folder_key = await decrypt(
+        enc_folder_key_ciphertext,
+        xwing_key_personal as BufferSource,
+        enc_folder_key_nonce,
+      );
+    } else if (access_type_data.data.access_type === "shared_subfolder") {
+      folder_key = await decrypt(
+        enc_folder_key_ciphertext,
+        current_folder_key as BufferSource,
+        enc_folder_key_nonce,
+      );
+    } else {
+      throw new Error("Unknown folder access type: " + access_type_data.data.access_type);
+    }
 
     const encrypted_folder_key = await encrypt(folder_key as BufferSource, xwing_key as BufferSource);
     

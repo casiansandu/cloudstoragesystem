@@ -230,6 +230,7 @@ export interface Config {
   FILESYSTEM_ROOT: string;
   REDIS_URL: string;
   FOLDER_NAMING_SECRET: string;
+  OPAQUE_SERVER_SETUP: string;
 }
 
 // Database Query Results

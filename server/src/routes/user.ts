@@ -1,11 +1,11 @@
 import express, { Router } from 'express';
-import { getUserKeysController } from '../controllers/users/getUserKeysController';
+import { getUserKeysController } from '../controllers/users/keys/getUserKeysController';
 import { authMiddleware } from '../middleware/authMiddleware';
-import { getUserPublicKeyController } from '../controllers/users/getUserPublicKeyController';
-import { getAllUserFileKeysController } from '../controllers/users/getAllUserFileKeys';
-import { getUserPublicKeyBundleController } from '../controllers/users/getUserPublicKeyBundleController';
-import { getUserEncryptedSeedController } from '../controllers/users/getUserEncryptedSeedController';
-import { getUserEncryptedArkController } from '../controllers/users/getUserEncryptedArkController';
+import { getUserPublicKeyController } from '../controllers/users/keys/getUserPublicKeyController';
+import { getAllUserFileKeysController } from '../controllers/users/keys/getAllUserFileKeys';
+import { getUserPublicKeyBundleController } from '../controllers/users/keys/getUserPublicKeyBundleController';
+import { getUserEncryptedSeedController } from '../controllers/users/keys/getUserEncryptedSeedController';
+import { getUserEncryptedArkController } from '../controllers/users/keys/getUserEncryptedArkController';
 
 const router: Router = express.Router();
 
