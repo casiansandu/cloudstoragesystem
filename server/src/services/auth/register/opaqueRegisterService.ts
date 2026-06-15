@@ -23,11 +23,10 @@ export async function opaqueRegisterFinishService(userData: any) {
       email: userData.email,
       opaqueRegistrationRecord: userData.registrationRecord, 
       kdfSalt: userData.kdf_salt,
-      userRsaPublic: userData.user_rsa_public,
-      encryptedUserRsaPrivate: userData.encrypted_user_rsa_private,
       publicKeysBundle: userData.public_keys_bundle,
       encryptedSeed: userData.encrypted_seed,
       encryptedArk: userData.encrypted_ark,
+      usedSpace: 0,
     })
     .returning({ id: users.id });
 

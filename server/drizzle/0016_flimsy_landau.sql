@@ -1,0 +1,1 @@
+ALTER TABLE "folder_access" ADD COLUMN "signature" text;

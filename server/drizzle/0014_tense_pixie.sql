@@ -1,0 +1,1 @@
+ALTER TABLE "user_access" ALTER COLUMN "sharing_user_id" DROP NOT NULL;

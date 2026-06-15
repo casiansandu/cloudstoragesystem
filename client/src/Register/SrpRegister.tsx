@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import srp from "secure-remote-password/client"
 import { useGlobalWorker } from "../context/WorkerContext.ts";
 
 export const SrpRegister = () => {
@@ -13,21 +12,6 @@ export const SrpRegister = () => {
   const [password, setPassword] = useState("");
 
   const navigate = useNavigate();
-
-  // const salt = srp.generateSalt();
-  // const _privateKey = srp.derivePrivateKey(salt, username, password);
-  // const verifier = srp.deriveVerifier(_privateKey);
-
-  // useEffect(() => {
-  //   const logoutUser = async () => {
-  //     const logoutResult = await worker.logoutUser();
-  //     if (!logoutResult.success) {
-  //       console.error("Logout failed in worker");
-  //     }
-  //   };
-
-  //   logoutUser();
-  // });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -91,11 +91,11 @@ export const WorkerProvider = ({ children }: { children: React.ReactNode }) => {
     uploadFile: (file) =>
       sendToWorker('UPLOAD_FILE', { file }),
 
-    getChunkInfos: (fileId) =>
-      sendToWorker('GET_CHUNK_INFOS', { fileId }),
+    loadChunkInfos: (fileId, is_personal_file) =>
+      sendToWorker('LOAD_CHUNK_INFOS', { fileId, is_personal_file }),
 
-    decryptChunk: (fileId, chunkId, chunkIndex) =>
-      sendToWorker('GET_AND_DECRYPT_CHUNK', { fileId, chunkId, chunkIndex }),
+    getAndDecryptChunk: (chunkIndex) =>
+      sendToWorker('GET_AND_DECRYPT_CHUNK', { chunkIndex }),
 
     shareFile: (fileId, recipientUsername, share_duration) =>
       sendToWorker('SHARE_FILE', { fileId, recipientUsername, share_duration }),
@@ -127,6 +127,12 @@ export const WorkerProvider = ({ children }: { children: React.ReactNode }) => {
     getSharedFolderDecryptedNamesAndIdsInFolder: (folders) =>
       sendToWorker('GET_SHARED_FOLDER_DECRYPTED_NAMES_AND_IDS_IN_FOLDER', { folders }),
 
+    decryptChunkVerifyHash: (chunkIndex, encryptedData, chunkHash) =>
+      sendToWorker(
+        'DECRYPT_CHUNK_VERIFY_HASH', 
+        { chunkIndex, encryptedData, chunkHash }, 
+        [encryptedData]
+      ),
 
   }), [sendToWorker]);
 

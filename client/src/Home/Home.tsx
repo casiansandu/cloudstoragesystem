@@ -15,23 +15,7 @@ import FolderList from "./FolderList";
 import ShareFilePopup from "./ShareFilePopup";
 import ShareFolderPopup, { type FolderSharePermissions } from "./ShareFolderPopup";
 import VirtualRootFolders from "./VirtualRootFolders";
-
-const getAuth = async (): Promise<boolean> => {
-  try {
-    const res = await fetch(`${config.BACKENDURL}/auth/status`, {
-      method: "GET",
-      credentials: "include"
-    });
-    
-    if (!res.ok) return false; 
-
-    const data = await res.json();
-    return data.data?.isAuthenticated === true;
-  } catch (error) {
-    console.error("Auth check failed:", error);
-    return false;
-  }
-}
+import { api } from "../api/index";
 
 export const Home = () => {
 
@@ -226,7 +210,7 @@ const handleNavigateDownShared = async (folderId: string, folderName: string) =>
     let isMounted = true;
 
     const verifyAndLoad = async () => {
-      const isAuthenticated = await getAuth();
+      const isAuthenticated = await api.auth.checkStatus();
 
       if (!isMounted) return;
 
@@ -330,25 +314,56 @@ const handleNavigateDownShared = async (folderId: string, folderName: string) =>
       }
 
       console.log("Starting download for file:", file);
-      try {
-        const manifest_data = await worker.getChunkInfos(file.id);
-        const fileStream = streamSaver.createWriteStream(file.name, { size: manifest_data.fileSize });
-        const writer = fileStream.getWriter();
+    try {
+      const personal = rootView !== "shared";
+      const manifest = await worker.loadChunkInfos(file.id, personal);
+      const chunk_number = manifest.chunk_infos.length;
+      
+      const fileStream = streamSaver.createWriteStream(file.name, { size: manifest.file_size });
+      const writer = fileStream.getWriter();
 
-        try {
-          for (const chunkInfo of manifest_data.chunks) {
-            const decryption_res = await worker.decryptChunk(file.id, chunkInfo.id, chunkInfo.index);
-            await writer.write(decryption_res.decryptedChunk);
+      const start = performance.now();
+      const CONCURRENCY_LIMIT = 5;
+
+      try {
+        const activeFetches = new Map<number, Promise<ArrayBuffer>>();
+
+        const queueFetch = (index: number) => {
+          if (index < chunk_number) {
+            const chunk_id = manifest.chunk_infos[index].id;
+            activeFetches.set(index, api.files.downloadChunk(file.id, chunk_id));
           }
-          await writer.close();
-          console.log("[Download] Download complete successfully.");
-        } finally {
-          await worker.closeFile(file.id); 
+        };
+
+        for (let i = 0; i < Math.min(CONCURRENCY_LIMIT, chunk_number); i++) {
+          queueFetch(i);
         }
+
+        for (let i = 0; i < chunk_number; i++) {
+          const buffer = await activeFetches.get(i);
+          activeFetches.delete(i);
+
+          const decryption_res = await worker.decryptChunkVerifyHash(i, buffer!, manifest.chunk_infos[i].chunk_hash);
+
+          await writer.write(decryption_res.chunkData);
+
+          queueFetch(i + CONCURRENCY_LIMIT);
+        }
+
+        await writer.close();
       } catch (error) {
+        await worker.closeFile(file.id);
+        await writer.close();
         console.error("Error downloading file:", error);
         alert("Failed to download file: " + (error as Error).message);
+      } finally {
+        await worker.closeFile(file.id);
+        const end = performance.now();
+        console.log(`Download time: ${((end - start) / 1000).toFixed(2)}s`);
       }
+    } catch (error) {
+      console.error("Download failed:", error);
+    }
     } catch (error) {
       console.error("Error checking download permissions:", error);
       alert("Failed to check download permissions: " + (error as Error).message);
@@ -357,7 +372,7 @@ const handleNavigateDownShared = async (folderId: string, folderName: string) =>
   };
 
   const handleDelete = async (file: UserFile) => {
-  if (!currentFolder.id) {
+  if (rootView !== "shared" && !currentFolder.id) {
       return alert("Current folder not loaded. Please log out and try again.");
   }
 
@@ -371,8 +386,11 @@ const handleNavigateDownShared = async (folderId: string, folderName: string) =>
           await verifyOwnership(file.id);
         }
         await deleteFile(file.id);
-
-        refreshFiles(currentFolder.id);
+        if (rootView === "shared") {
+          await refreshSharedFiles(currentFolder.id ?? "");
+        } else {
+          await refreshFiles(currentFolder.id);
+        }
         handleClearSelection();
       } catch (error) {
         console.error("Error deleting file:", error);
@@ -421,7 +439,7 @@ const handleNavigateDownShared = async (folderId: string, folderName: string) =>
           alert(`Failed to delete file ${file.name}: ` + (error as Error).message);
         }
       }
-      refreshFiles(currentFolder.id);
+      await refreshFiles(currentFolder.id);
       handleClearSelection();
     }
   };
@@ -492,9 +510,9 @@ const handleNavigateDownShared = async (folderId: string, folderName: string) =>
     handleClearSelection();
   };
 
-  const handleDeleteFolder = (_folder: UserFolder) => {
+  const handleDeleteFolder = async (_folder: UserFolder) => {
     if (!currentFolder.id) {
-      refreshSharedFiles();
+      await refreshSharedFiles();
     }
 
     if (rootView === "shared" && currentFolder.id && !sharedFolderPermissions?.can_delete) {

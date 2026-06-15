@@ -10,8 +10,6 @@ async function getUserKeysService(id: string): Promise<GetKeysResult> {
     const [result] = await db
         .select({
             kdf_salt: users.kdfSalt,
-            user_rsa_public: users.userRsaPublic,
-            encrypted_user_rsa_private: users.encryptedUserRsaPrivate,
         })
         .from(users)
         .where(eq(users.id, id))

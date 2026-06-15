@@ -30,8 +30,8 @@ async function hasAccessToFileController(
     try {
         const access_id = await hasAccessToFileService(user_id, file_id);
         if (!access_id) {
-            res.status(403).json({
-                message: 'Access denied: user does not have access to the file',
+            res.status(200).json({
+                message: 'File access check completed: user does not have access to the file',
                 success: false
             });
             return;

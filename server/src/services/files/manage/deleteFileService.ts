@@ -1,8 +1,8 @@
 import db from "../../../db/db";
 import { getStoragePath } from "../../../utils/getStoragePath";
 import fs from 'node:fs/promises';
-import { eq } from 'drizzle-orm';
-import { files, userAccess } from '../../../db/schema';
+import { eq, sql } from 'drizzle-orm';
+import { files, userAccess, users } from '../../../db/schema';
 
 export default async function deleteFileService(
     user_id: string,
@@ -11,7 +11,7 @@ export default async function deleteFileService(
 ): Promise<void> {
     
     const [file] = await db
-        .select({ id: files.id, owner_id: files.ownerId })
+        .select({ id: files.id, owner_id: files.ownerId, fileSize: files.fileSize })
         .from(files)
         .where(eq(files.id, file_id))
         .limit(1);
@@ -29,6 +29,13 @@ export default async function deleteFileService(
             await tx.delete(userAccess).where(eq(userAccess.fileId, file_id));
 
             await tx.delete(files).where(eq(files.id, file_id));
+
+            await tx
+                .update(users)
+                .set({ 
+                    usedSpace: sql`GREATEST(0, ${users.usedSpace} - ${file.fileSize})` 
+                })
+                .where(eq(users.id, file.owner_id));
         });
     } catch (dbError) {
         console.error('Database deletion failed, transaction rolled back:', dbError);

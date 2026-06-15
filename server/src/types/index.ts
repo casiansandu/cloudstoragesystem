@@ -107,6 +107,7 @@ export interface ShareFileHybridRequest extends AuthenticatedRequest {
     share_duration: number;
     mlkem_ciphertext: string;
     x25519_ephemeral_public?: string;
+    signature: string;
   };
 }
 
@@ -116,8 +117,6 @@ export type UserCreationResult = Pick<User, 'username' | 'id'>;
 
 export interface GetKeysResult {
   kdf_salt: string;
-  user_rsa_public: string;
-  encrypted_user_rsa_private: string;
 }
 
 export interface GetPublicKeyResult {
@@ -231,6 +230,8 @@ export interface Config {
   REDIS_URL: string;
   FOLDER_NAMING_SECRET: string;
   OPAQUE_SERVER_SETUP: string;
+  USER_USED_SPACE: string;
+  USER_MAX_SPACE: string;
 }
 
 // Database Query Results

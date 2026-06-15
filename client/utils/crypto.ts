@@ -227,47 +227,21 @@ export const encrypt = async (
 };
 
 export async function deriveChunkKey(
-  fileMasterKey: CryptoKey | BufferSource, 
+  hkdfBaseKey: CryptoKey,
   chunkIndex: number, 
   fileId: string
 ): Promise<CryptoKey> {
-  const subtle = crypto.subtle;
-  let hkdfKey: CryptoKey;
-
-  if (fileMasterKey instanceof CryptoKey) {
-    if (fileMasterKey.algorithm.name === "HKDF") {
-      hkdfKey = fileMasterKey;
-    } else {
-      const rawBits = await subtle.exportKey("raw", fileMasterKey);
-      hkdfKey = await subtle.importKey(
-        "raw", 
-        rawBits, 
-        { name: "HKDF" }, 
-        false, 
-        ["deriveKey"]
-      );
-    }
-  } else {
-    hkdfKey = await subtle.importKey(
-      "raw",
-      fileMasterKey,
-      { name: "HKDF" },
-      false,
-      ["deriveKey"]
-    );
-  }
-
   const encoder = new TextEncoder();
   const infoBuffer = encoder.encode(`file:${fileId}:chunk:${chunkIndex}`);
 
-  return await subtle.deriveKey(
+  return await crypto.subtle.deriveKey(
     {
       name: "HKDF",
       hash: "SHA-256",
       salt: new Uint8Array(0),
       info: infoBuffer
     },
-    hkdfKey,
+    hkdfBaseKey,
     {
       name: "AES-GCM",
       length: 256,

@@ -1,11 +1,8 @@
 import { sha256 } from "js-sha256";
 import {
   bufferToHex,
-  decryptRSA,
   deriveChunkKey,
   encrypt,
-  encryptRSA,
-  generateMasterKey,
   hexToBuffer,
   type EncryptedResult,
 } from "../../../utils/crypto";
@@ -13,7 +10,7 @@ import type { FileUploadResponse, ManifestData } from "../../utils/apiTypes";
 import { concatUint8, gen_uuidv5 } from "../../utils/funcs";
 import config from "../../../config/config";
 import { v4 as uuidv4 } from "uuid";
-
+import { api } from "../../api/index";
 
 async function getManifestKeyFromBackend(file_id: string): Promise<BufferSource> {
   const res = await fetch(`${config.BACKENDURL}/files/${file_id}/manifest_key`, {
@@ -28,10 +25,9 @@ async function getManifestKeyFromBackend(file_id: string): Promise<BufferSource>
   return hexToBuffer(data.data.encrypted_manifest_key) as BufferSource;
 }
 
-
 export async function startHybridUpload(
   enc_file_name_data: EncryptedResult, 
-  selectedFile: File, 
+  file_size_bytes: number, 
   file_id: string, 
   enc_file_key: string,
   share_duration: number,
@@ -46,7 +42,7 @@ export async function startHybridUpload(
               new Uint8Array(enc_file_name_data.nonce),
               new Uint8Array(enc_file_name_data.ciphertext)
           ) as BufferSource),
-          file_size: selectedFile.size,
+          file_size: file_size_bytes,
           encrypted_file_key: enc_file_key,
           share_duration: share_duration,
           folder_id: folder_id
@@ -56,8 +52,6 @@ export async function startHybridUpload(
   const data: FileUploadResponse = await res.json();
 
   file_id = data.data?.file_id?? "";
-  //const access_id = data.data?.access_id?? "";
-
   if (!data.success) {
       throw new Error("Failed to start upload: " + data.message);
   }
@@ -74,27 +68,14 @@ export async function startHybridUpload(
 }
 
 export async function uploadChunk(bytes: ArrayBuffer, file_id: string, chunk_id: string): Promise<number> {
-  const res = await fetch(`${config.BACKENDURL}/files/upload/${file_id}/${chunk_id}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/octet-stream'
-    },
-    credentials: 'include',
-    body: bytes
-  });
 
-  const data: FileUploadResponse = await res.json();
-
-
-  if (!data.success) {
-    throw new Error(`Chunk upload failed for chunk ${chunk_id}: ${data.message}`);
-  }
+  const upload_res = await api.files.uploadChunk(file_id, chunk_id, bytes);
   
-  if (!data.data?.stored_bytes) {
+  if (!upload_res.stored_bytes) {
     throw new Error("No data returned from server for chunk " + chunk_id);
   }
 
-  return data.data.stored_bytes; 
+  return upload_res.stored_bytes; 
 }
 
 export async function handleChunkEncryption(
@@ -108,7 +89,15 @@ export async function handleChunkEncryption(
     console.log(chunk_index + "/" + chunk_number);
     const chunk_id = uuidv4();
 
-    const chunk_key = await deriveChunkKey(file_key, chunk_index, file_id);
+    const file_crypto_key = await crypto.subtle.importKey(
+      "raw",
+      file_key,
+      { name: "HKDF" },
+      false,
+        ["deriveKey"]
+    );
+
+    const chunk_key = await deriveChunkKey(file_crypto_key, chunk_index, file_id);
 
     const chunk_start = chunk_index * chunk_size;
     const chunk_end = Math.min(chunk_start + chunk_size, selectedFile.size);

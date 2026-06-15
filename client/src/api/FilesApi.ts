@@ -11,7 +11,8 @@ import type {
   UploadChunkResponse,
   ShareFileHybridRequest,
   ShareFileHybridResponse,
-  DeleteFileResponse
+  DeleteFileResponse,
+  GetOwnerIdResponse
 } from './types'; 
 
 export class FilesApi extends BaseApi {
@@ -71,18 +72,18 @@ export class FilesApi extends BaseApi {
     });
   }
 
-  async uploadChunk(fileId: string, chunkId: string, chunkData: Uint8Array) {
+  async uploadChunk(fileId: string, chunkId: string, chunkData: ArrayBuffer) {
     return this.request<UploadChunkResponse>(`/files/upload/${fileId}/${chunkId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/octet-stream' 
       },
       // Safely pass the underlying ArrayBuffer
-      body: chunkData.buffer as ArrayBuffer
+      body: chunkData
     });
   }
 
-  async downloadChunk(fileId: string, chunkId: string): Promise<Blob> {
+  async downloadChunk(fileId: string, chunkId: string): Promise<ArrayBuffer> {
     const response = await fetch(`${this.baseUrl}/files/download/${fileId}/${chunkId}`, {
       method: 'GET',
       credentials: 'include', 
@@ -92,7 +93,7 @@ export class FilesApi extends BaseApi {
       throw new Error(`Failed to download chunk: ${response.statusText}`);
     }
 
-    return response.blob();
+    return response.arrayBuffer();
   }
 
   // ==========================================
@@ -109,6 +110,24 @@ export class FilesApi extends BaseApi {
   async delete(fileId: string) {
     return this.request<DeleteFileResponse>(`/files/${fileId}`, {
       method: 'DELETE'
+    });
+  }
+
+  async getOwnerId(fileId: string) {
+    return this.request<GetOwnerIdResponse>(`/files/${fileId}/owner_id`, {
+      method: 'GET'
+    });
+  }
+
+  async getSignature(fileId: string) {
+    return this.request<{ signature: string }>(`/files/${fileId}/signature`, {
+      method: 'GET'
+    });
+  }
+
+  async getSharingUserId(fileId: string) {
+    return this.request<{ sharing_user_id: string }>(`/files/${fileId}/sharing_user_id`, {
+      method: 'GET'
     });
   }
 }

@@ -47,13 +47,21 @@ export async function uploadController(
         }
 
         const stored_bytes = await uploadChunkService(req.body, file_id, chunk_id);
-        
         res.status(200).json({ message: 'Chunk received', success: true, data: { stored_bytes } });
-        return;
+
     } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        
+        if (message === 'STORAGE_LIMIT_EXCEEDED') {
+            res.status(413).json({ 
+                message: 'Chunk rejected: Exceeds declared file size.', 
+                success: false 
+            });
+            return;
+        }
+
         console.error('Upload chunk failed:', error);
         res.status(500).json({ message: 'Unable to upload chunk', success: false });
-        return;
     }
 }
 

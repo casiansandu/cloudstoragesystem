@@ -27,6 +27,7 @@ export async function shareFolderHybridController(
     mlkem_ciphertext,
     x25519_ephemeral_public,
     permissions,
+    signature,
   } = req.body;
 
   if (
@@ -37,7 +38,8 @@ export async function shareFolderHybridController(
     share_duration === null ||
     !mlkem_ciphertext ||
     !x25519_ephemeral_public ||
-    !permissions
+    !permissions ||
+    !signature
   ) {
     res.status(400).json({ message: "Missing required fields", success: false });
     return;
@@ -63,7 +65,8 @@ export async function shareFolderHybridController(
       share_duration,
       mlkem_ciphertext,
       x25519_ephemeral_public,
-      permissions
+      permissions,
+      signature
     );
     console.log("Folder shared with access ID:", access_id);
     res.status(200).json({

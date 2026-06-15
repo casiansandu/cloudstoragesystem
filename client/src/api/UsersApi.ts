@@ -10,6 +10,12 @@ import type {
 
 export class UsersApi extends BaseApi {
 
+  async getUserId(username: string) {
+    return this.request<{ user_id: string }>(`/users/${username}/id`, {
+      method: 'GET'
+    });
+  }
+
   // ==========================================
   // GENERAL USER KEYS (Authenticated User)
   // ==========================================

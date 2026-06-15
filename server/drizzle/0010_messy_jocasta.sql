@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "public_signing_key" text NOT NULL;

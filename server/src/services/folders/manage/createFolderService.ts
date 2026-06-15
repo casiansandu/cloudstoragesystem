@@ -6,6 +6,7 @@ export async function createFolderService(
     user_id: string, 
     encrypted_key_data_ark: string, 
     encrypted_key_data_parent: string, 
+    signature: string,
     parent_folder_id?: string, 
     encrypted_folder_name_data?: string,
     tx: DatabaseRunner = db
@@ -33,6 +34,7 @@ export async function createFolderService(
             canUpload: true,
             canShare: true,
             canDelete: true,
+            signature: signature
         })
         .returning({ access_id: folderAccess.accessId });
 

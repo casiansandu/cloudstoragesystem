@@ -1,0 +1,1 @@
+ALTER TABLE "folder_access" ALTER COLUMN "signature" SET NOT NULL;

@@ -1,42 +1,28 @@
-import config from "../../../config/config";
-import type { EncryptedUserFile, EncryptedUserFileNoKey, ManifestData } from "../../utils/apiTypes";
-import { bufferToHex, decrypt, deriveChunkKey, hexToBuffer } from "../../../utils/crypto";
-import { fetchChunk } from "../../components/DownloadFileFeature/downloadFile";
+import type { EncryptedUserFileNoKey, ManifestData } from "../../utils/apiTypes";
+import { decrypt, deriveChunkKey, hexToBuffer } from "../../../utils/crypto";
 import { expandKeyForData, expandKeyForManifest } from "./cryptoKeys";
+import { api } from "../../api/index";
 
 type SessionFileKeyEntry = {
   encrypted_file_key: string;
   temp_decrypted_file_key: BufferSource | null;
+  file_key_for_download?: CryptoKey | null;
 };
 
 type GetManifestData = (fileId: string, fileManifestKey: Uint8Array) => Promise<ManifestData>;
 
-type GetXwingKeyForFile = (fileId: string) => Promise<Uint8Array>;
-
-type EncryptedSharedFile = {
-  id: string;
-  encrypted_name_data: string;
-  encrypted_file_key?: string;
-};
+type getXwingKeyForFileAndVerifySig = (fileId: string, encrypted_file_key: Uint8Array) => Promise<Uint8Array>;
 
 export const getFilesInFolder = async (
   folderId: string,
   sessionFileKeys: Map<string, SessionFileKeyEntry>,
 ) => {
-  const res = await fetch(`${config.BACKENDURL}/folders/${folderId}/files`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
-
-  if (!data.success) {
-    throw new Error("Failed to fetch files in folder: " + data.message);
-  }
-  const files_with_keys = data.data.files as EncryptedUserFile[];
+  // REFACTORED TO API
+  const { files: files_with_keys } = await api.folders.getFiles(folderId);
 
   for (const file of files_with_keys) {
     sessionFileKeys.set(file.id, {
+      // Mapping from the API type which uses encrypted_key_data
       encrypted_file_key: file.encrypted_key_data,
       temp_decrypted_file_key: null,
     });
@@ -50,56 +36,32 @@ export const getFilesInFolder = async (
 export const getSharedFiles = async (
   sessionFileKeys: Map<string, SessionFileKeyEntry>,
 ) => {
-  const files: EncryptedUserFileNoKey[] = await fetch(
-    `${config.BACKENDURL}/files/shared`,
-    {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    },
-  )
-    .then((res) => res.json())
-    .then((data) => {
-      if (!data.success) {
-        throw new Error("Failed to fetch shared files: " + data.message);
-      }
+  const { files: temp_files } = await api.files.getShared();
 
-      const temp_files = data.data.files as EncryptedSharedFile[];
-      const files_to_return: EncryptedUserFileNoKey[] = [];
-      for (const file of temp_files) {
-        const encrypted_file_key = file.encrypted_file_key;
-        if (!encrypted_file_key) {
-          throw new Error("Missing encrypted file key for shared file: " + file.id);
-        }
-        sessionFileKeys.set(file.id, {
-          encrypted_file_key: encrypted_file_key,
-          temp_decrypted_file_key: null,
-        });
-        files_to_return.push({ id: file.id, encrypted_name_data: file.encrypted_name_data });
-      }
+  const files_to_return: EncryptedUserFileNoKey[] = [];
 
-      return files_to_return;
+  for (const file of temp_files) {
+    const encrypted_file_key = file.encrypted_file_key;
+    if (!encrypted_file_key) {
+      throw new Error("Missing encrypted file key for shared file: " + file.id);
+    }
+    sessionFileKeys.set(file.id, {
+      encrypted_file_key: encrypted_file_key,
+      temp_decrypted_file_key: null,
     });
+    files_to_return.push({ id: file.id, encrypted_name_data: file.encrypted_name_data });
+  }
 
-  return files;
+  return files_to_return;
 };
 
 export const getSharedFilesInFolder = async (
   folderId: string,
   sessionFileKeys: Map<string, SessionFileKeyEntry>,
 ) => {
-  const res = await fetch(`${config.BACKENDURL}/folders/${folderId}/shared/files`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  const data = await res.json();
+  // REFACTORED TO API
+  const { files: files_with_keys } = await api.folders.getSharedFiles(folderId);
 
-  if (!data.success) {
-    throw new Error("Failed to fetch shared files in folder: " + data.message);
-  }
-
-  const files_with_keys = data.data.files as EncryptedSharedFile[];
   for (const file of files_with_keys) {
     const encrypted_file_key = file.encrypted_file_key;
     if (!encrypted_file_key) {
@@ -123,7 +85,7 @@ export const getChunkInfos = async (
   fileId: string,
   sessionFileKeys: Map<string, SessionFileKeyEntry>,
   currentFolderKey: Uint8Array,
-  getXwingKeyForFile: GetXwingKeyForFile,
+  getXwingKeyForFileAndVerifySig: getXwingKeyForFileAndVerifySig,
   getManifestData: GetManifestData,
 ) => {
   if (!sessionFileKeys.get(fileId)) {
@@ -147,7 +109,7 @@ export const getChunkInfos = async (
     );
   } catch (normal_error) {
     try {
-      const xwing_key = await getXwingKeyForFile(fileId);
+      const xwing_key = await getXwingKeyForFileAndVerifySig(fileId, hexToBuffer(encrypted_file_key));
       file_key = await decrypt(
         file_key_ciphertext,
         xwing_key as BufferSource,
@@ -164,24 +126,25 @@ export const getChunkInfos = async (
   const fileManifestKey = expandKeyForManifest(file_key);
 
   const manifest_json = await getManifestData(fileId, fileManifestKey);
+
   const file_size = manifest_json.file_size;
 
-  return { fileSize: file_size, chunks: manifest_json.chunkInfos };
+  return { fileSize: file_size, chunk_infos: manifest_json.chunkInfos };
 };
 
-export const getAndDecryptChunk = async (
+export const decryptChunk = async (
+  encrypted_chunk_data: ArrayBuffer,
   fileId: string,
-  chunkId: string,
   chunkIndex: number,
   sessionFileKeys: Map<string, SessionFileKeyEntry>,
   currentFolderKey: Uint8Array,
-  getXwingKeyForFile: GetXwingKeyForFile,
+  getXwingKeyForFileAndVerifySig: getXwingKeyForFileAndVerifySig,
+  is_personal_file: boolean,
+  is_shared_sub_file: boolean,
 ) => {
   if (!sessionFileKeys.get(fileId)) {
     throw new Error("File session data not found for file: " + fileId);
   }
-
-  const chunk_data = await fetchChunk(fileId, chunkId);
 
   const file_master_key_encrypted =
     sessionFileKeys.get(fileId)?.encrypted_file_key;
@@ -192,49 +155,54 @@ export const getAndDecryptChunk = async (
     );
   }
 
-  let file_key =
-    sessionFileKeys.get(fileId)!.temp_decrypted_file_key;
+  if (!sessionFileKeys.get(fileId)?.file_key_for_download) {
+    let raw_file_key: BufferSource;
 
-  if (!file_key) {
     const enc_file_key_data = hexToBuffer(file_master_key_encrypted);
     const enc_file_key_nonce = enc_file_key_data.slice(0, 12);
     const enc_file_key_ciphertext = enc_file_key_data.slice(12);
 
     try {
-      file_key = expandKeyForData(await decrypt(
-        enc_file_key_ciphertext,
-        currentFolderKey as BufferSource,
-        enc_file_key_nonce,
-      )) as BufferSource;
-    }
-    catch (normal_error) {
-      try {
-        const xwing_key = await getXwingKeyForFile(fileId);
-        file_key = expandKeyForData(await decrypt(
+      if (is_personal_file || is_shared_sub_file) {
+        raw_file_key = expandKeyForData(await decrypt(
+          enc_file_key_ciphertext,
+          currentFolderKey as BufferSource,
+          enc_file_key_nonce,
+        )) as BufferSource;
+      } else {
+        const xwing_key = await getXwingKeyForFileAndVerifySig(fileId, hexToBuffer(file_master_key_encrypted));
+        raw_file_key = expandKeyForData(await decrypt(
           enc_file_key_ciphertext,
           xwing_key as BufferSource,
           enc_file_key_nonce,
         )) as BufferSource;
-      } catch (xwing_error) {
-        console.warn(`Decryption of file key for file ${fileId} failed.`, {
-          normal_error, xwing_error,
-        });
-        throw new Error("Failed to decrypt file key for file: " + fileId);
+
       }
+    } catch (error) {
+      console.warn(`Decryption of file key for file ${fileId} failed.`, {
+        error,
+      });
+      throw new Error("Failed to decrypt file key for file: " + fileId);
     }
 
-    sessionFileKeys.get(fileId)!.temp_decrypted_file_key =
-      file_key;
+    sessionFileKeys.get(fileId)!.file_key_for_download = await crypto.subtle.importKey(
+      "raw",
+      raw_file_key,
+      { name: "HKDF" },
+      false,
+      ["deriveKey"]
+    );
   }
 
   const chunk_key = await deriveChunkKey(
-    file_key,
+    sessionFileKeys.get(fileId)!.file_key_for_download!,
     chunkIndex,
     fileId,
   );
 
-  const chunk_nonce = chunk_data.slice(0, 12);
-  const chunk_ciphertext = chunk_data.slice(12);
+  const chunkView = new Uint8Array(encrypted_chunk_data);
+  const chunk_nonce = chunkView.subarray(0, 12);
+  const chunk_ciphertext = chunkView.subarray(12);
 
   const decrypted_chunk = await decrypt(
     chunk_ciphertext,

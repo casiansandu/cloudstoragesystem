@@ -40,7 +40,7 @@ export class AuthApi extends BaseApi {
   async loginOpaqueVerify(data: OpaqueLoginVerifyRequest) {
     return this.request<null>('/auth/login/verify', {
       method: 'POST',
-      requiresAuth: false,
+      requiresAuth: true,
       body: JSON.stringify(data),
     });
   }

@@ -13,15 +13,16 @@ const config: Config = {
   REDIS_URL: process.env.REDIS_URL || '',
   FOLDER_NAMING_SECRET: process.env.FOLDER_NAMING_SECRET || '',
   OPAQUE_SERVER_SETUP: process.env.OPAQUE_SERVER_SETUP || '',
+  USER_USED_SPACE: process.env.USER_USED_SPACE || '0',
+  USER_MAX_SPACE: process.env.USER_MAX_SPACE || '2147000000',
 };
 
-// Validate required environment variables
-const requiredEnvVars: (keyof Config)[] = ['JWT_SECRET', 'DB_NAME', 'DB_USERNAME', 'DB_PASSWORD', 'FILESYSTEM_ROOT', 'REDIS_URL', 'FOLDER_NAMING_SECRET', 'OPAQUE_SERVER_SETUP'];
+const requiredEnvVars: (keyof Config)[] = ['JWT_SECRET', 'DB_NAME', 'DB_USERNAME', 'DB_PASSWORD', 'FILESYSTEM_ROOT', 'REDIS_URL', 'FOLDER_NAMING_SECRET', 'OPAQUE_SERVER_SETUP', 'USER_USED_SPACE', 'USER_MAX_SPACE'];
 const missingEnvVars = requiredEnvVars.filter(key => !config[key]);
 
 if (missingEnvVars.length > 0) {
   throw new Error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
 }
 
-export const { PORT, JWT_SECRET, DB_NAME, DB_USERNAME, DB_PASSWORD, FILESYSTEM_ROOT, REDIS_URL, FOLDER_NAMING_SECRET, OPAQUE_SERVER_SETUP } = config;
+export const { PORT, JWT_SECRET, DB_NAME, DB_USERNAME, DB_PASSWORD, FILESYSTEM_ROOT, REDIS_URL, FOLDER_NAMING_SECRET, OPAQUE_SERVER_SETUP, USER_USED_SPACE, USER_MAX_SPACE } = config;
 export default config;

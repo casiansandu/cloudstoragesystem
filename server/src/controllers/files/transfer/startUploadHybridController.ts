@@ -71,6 +71,14 @@ export async function startHybridUploadController(
             return;
         }
 
+        if (message === "GLOBAL_QUOTA_EXCEEDED") {
+            res.status(413).json({ 
+                message: 'Upload rejected: User storage quota exceeded.',
+                success: false 
+            });
+            return;
+        }
+
         console.error('Start hybrid upload failed:', error);
         res.status(500).json({ message: 'Unable to start upload', success: false });
         return;

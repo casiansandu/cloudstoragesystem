@@ -15,8 +15,6 @@ export async function getUserKeysController(req: AuthenticatedRequest, res: Resp
             message: 'Keys retrieved successfully',
             data: {
                 kdf_salt: keys.kdf_salt,
-                encrypted_user_rsa_private: keys.encrypted_user_rsa_private,
-                user_rsa_public: keys.user_rsa_public,
             }, 
             success: true });
         return;

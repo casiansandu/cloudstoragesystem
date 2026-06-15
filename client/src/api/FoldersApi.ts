@@ -19,7 +19,8 @@ import type {
   ShareFolderHybridRequest,
   ShareFolderHybridResponse,
   GetFolderFilesResponse, // From file types
-  GetSharedFilesResponse  // From file types
+  GetSharedFilesResponse,  // From file types
+  GetOwnerIdResponse
 } from './types'; 
 
 export class FoldersApi extends BaseApi {
@@ -96,6 +97,18 @@ export class FoldersApi extends BaseApi {
   // ==========================================
   // SHARING
   // ==========================================
+
+  async getOwnerId(folderId: string) {
+    return this.request<GetOwnerIdResponse>(`/folders/${folderId}/owner_id`, {
+      method: 'GET'
+    });
+  }
+
+  async getSignature(folderId: string) {
+    return this.request<{ signature: string }>(`/folders/${folderId}/signature`, {
+      method: 'GET'
+    });
+  }
 
   async getShared() {
     return this.request<GetSharedFoldersResponse>('/folders/shared', {

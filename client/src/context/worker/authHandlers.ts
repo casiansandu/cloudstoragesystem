@@ -1,7 +1,3 @@
-import config from "../../../config/config";
-import type {
-  GetUserKeysResponse,
-} from "../../utils/apiTypes";
 import {
   bufferToHex,
   decrypt,
@@ -13,14 +9,13 @@ import {
 import { concatUint8 } from "../../utils/funcs";
 import { ml_kem768 } from "@noble/post-quantum/ml-kem.js";
 import { x25519 } from "@noble/curves/ed25519.js";
+import { ed25519 } from "@noble/curves/ed25519.js";
 import { scryptAsync } from "@noble/hashes/scrypt.js";
-import { createFolderForUser, getRootFolderId } from "./folderHandlers";
 import { expandKeyForName } from "./cryptoKeys";
 import * as opaque from "@serenity-kit/opaque";
+import { api } from "../../api/index";
 
 export type UserStateUpdate = {
-  user_rsa_private: CryptoKey;
-  user_rsa_public: CryptoKey;
   user_mlkem_public: Uint8Array;
   user_mlkem_private: Uint8Array;
   user_x25519_public: Uint8Array;
@@ -28,31 +23,15 @@ export type UserStateUpdate = {
   current_folder_key: Uint8Array;
   current_folder_id: string;
   user_ark: Uint8Array;
+  ed25519_private: Uint8Array;
 };
 
-const fetch_and_decrypt_user_ark = async (username: string, user_master_key: Uint8Array) => {
-  const { nonce: enc_ark_nonce, enc_ark } = await fetch(
-    `${config.BACKENDURL}/users/keys/encrypted_ark`,
-    {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    },
-  )
-    .then((res) => res.json())
-    .then((data) => {
-      if (!data.success) {
-        throw new Error("Failed to fetch user's encrypted ark");
-      }
-      const fullArkBuffer = new Uint8Array(
-        hexToBuffer(data.data.encrypted_ark),
-      );
-
-      return {
-        nonce: fullArkBuffer.slice(0, 12),
-        enc_ark: fullArkBuffer.slice(12),
-      };
-    });
+const fetch_and_decrypt_user_ark = async (user_master_key: Uint8Array) => {
+  const { encrypted_ark } = await api.users.getEncryptedArk();
+  
+  const fullArkBuffer = new Uint8Array(hexToBuffer(encrypted_ark));
+  const enc_ark_nonce = fullArkBuffer.slice(0, 12);
+  const enc_ark = fullArkBuffer.slice(12);
 
   const user_ark = await decrypt(
     enc_ark,
@@ -63,23 +42,10 @@ const fetch_and_decrypt_user_ark = async (username: string, user_master_key: Uin
 }
 
 export const initializeUserData = async (
-  username: string,
   password: string,
 ): Promise<UserStateUpdate> => {
-  const user_keys_info = await fetch(`${config.BACKENDURL}/users/keys`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  })
-  .then((res) => res.json() as Promise<GetUserKeysResponse>)
-  .then(async (data) => {
-    if (!data.success) {
-      throw new Error(data.message);
-    }
-    console.log("Fetched user keys");
-
-    return { kdf_salt: data.data.kdf_salt, encrypted_user_rsa_private: data.data.encrypted_user_rsa_private, user_rsa_public: data.data.user_rsa_public };
-  });
+  
+  const user_keys_info = await api.users.getKeys();
 
   const user_master_key = await scryptAsync(
     new TextEncoder().encode(password),
@@ -87,150 +53,97 @@ export const initializeUserData = async (
     { N: 16384, r: 8, p: 1, dkLen: 32 }
   );
 
-  const private_key_data = new Uint8Array(
-    hexToBuffer(user_keys_info.encrypted_user_rsa_private),
-  );
-  const private_key_nonce = private_key_data.slice(0, 12);
-  const private_key_ciphertext = private_key_data.slice(12);
+  const user_ark = await fetch_and_decrypt_user_ark(user_master_key); 
 
-  const decrypted_rsa_private_key = await decrypt(
-    private_key_ciphertext,
-    user_master_key as BufferSource,
-    private_key_nonce,
-  );
-
-  const user_rsa_private = await crypto.subtle.importKey(
-    "pkcs8",
-    decrypted_rsa_private_key as BufferSource,
-    {
-      name: "RSA-OAEP",
-      hash: { name: "SHA-256" },
-    },
-    false,
-    ["decrypt"],
-  );
-
-  const user_rsa_public = await crypto.subtle.importKey(
-    "spki",
-    hexToBuffer(user_keys_info.user_rsa_public) as BufferSource,
-    {
-      name: "RSA-OAEP",
-      hash: { name: "SHA-256" },
-    },
-    false,
-    ["encrypt"],
-  );
-
-  console.log("RSA user keys initialized in worker.");
-
-  const user_ark = await fetch_and_decrypt_user_ark(username, user_master_key); 
-  console.log("User ARK decrypted");
-
-  const { nonce: enc_seed_nonce, enc_seed } = await fetch(
-    `${config.BACKENDURL}/users/keys/encrypted_seed`,
-    {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    },
-  )
-    .then((res) => res.json())
-    .then((data) => {
-      if (!data.success) {
-        throw new Error("Failed to fetch user's encrypted seed");
-      }
-      const fullSeedBuffer = new Uint8Array(
-        hexToBuffer(data.data.encrypted_seed),
-      );
-
-      return {
-        nonce: fullSeedBuffer.slice(0, 12),
-        enc_seed: fullSeedBuffer.slice(12),
-      };
-    });
+  const { encrypted_seed } = await api.users.getEncryptedSeed();
+  
+  const fullSeedBuffer = new Uint8Array(hexToBuffer(encrypted_seed));
+  const enc_seed_nonce = fullSeedBuffer.slice(0, 12);
+  const enc_seed = fullSeedBuffer.slice(12);
 
   const decrypted_seed = await decrypt(
     enc_seed,
     user_master_key as BufferSource,
     enc_seed_nonce,
   );
-  console.log("Decrypted user seed");
 
   const ml_kem_keys = ml_kem768.keygen(decrypted_seed.slice(0, 64));
 
   const user_mlkem_private = ml_kem_keys.secretKey;
   const user_mlkem_public = ml_kem_keys.publicKey;
 
-  const user_x25519_private = decrypted_seed.slice(64);
+  const user_x25519_private = decrypted_seed.slice(64, 96);
   const user_x25519_public = x25519.getPublicKey(user_x25519_private);
 
-  console.log("MKLEM and X25519 user keys initialized in worker.");
+  const ed25519_priv = decrypted_seed.slice(96, 128);
 
-  const hasRootFolder = await fetch(`${config.BACKENDURL}/folders/root/exists`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  })
-    .then(res => res.json());
+  const hasRootFolder = await api.folders.checkRootExists();
 
   let root_folder_key: Uint8Array;
+  console.log("Root folder existence check:", hasRootFolder.id);
 
-  if (!hasRootFolder.success) {
-    throw new Error("Failed to check for root folder existence: " + hasRootFolder.message);
-  }
-  console.log("Root folder existence check:", hasRootFolder.data.id);
-  if (hasRootFolder.data.exists) {
-    const { nonce: root_folder_key_nonce, root_folder_key_ciphertext } = await fetch(
-      `${config.BACKENDURL}/folders/${hasRootFolder.data.id}/data`,
-      {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-      }
-    )
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data.success) {
-          throw new Error("Failed to fetch users' root folder key data: " + data.message);
-        }
-        const fullKeyData = new Uint8Array(
-          hexToBuffer(data.data.encrypted_key_data),
-        );
-
-        return {
-          nonce: fullKeyData.slice(0, 12),
-          root_folder_key_ciphertext: fullKeyData.slice(12),
-        };
-      });
+  if (hasRootFolder.exists) {
+    const folderData = await api.folders.getData(hasRootFolder.id);
+    
+    const fullKeyData = new Uint8Array(hexToBuffer(folderData.encrypted_key_data));
+    const root_folder_key_nonce = fullKeyData.slice(0, 12);
+    const root_folder_key_ciphertext = fullKeyData.slice(12);
 
     root_folder_key = await decrypt(
       root_folder_key_ciphertext,
       user_ark as BufferSource,
       root_folder_key_nonce,
     );
+
+    const { signature } = await api.folders.getSignature(hasRootFolder.id);
+
+    const isValidSignature = ed25519.verify(
+      hexToBuffer(signature),
+      concatUint8(
+        new TextEncoder().encode(""),
+        hexToBuffer(folderData.encrypted_name_data),
+        hexToBuffer(folderData.encrypted_key_data)
+      ),
+      ed25519.getPublicKey(ed25519_priv),
+    );
+
+    if (isValidSignature) {
+      console.log("Valid signature for root folder data");
+    } else {
+      throw new Error("Invalid signature for root folder data");
+    }
+
   } else {
     console.log("No root folder found for user, creating one...");
     root_folder_key = await generateMasterKey() as Uint8Array;
     const encrypted_name_data = await encrypt(new TextEncoder().encode("root"), expandKeyForName(root_folder_key) as BufferSource);
     const encrypted_root_folder_key = await encrypt(root_folder_key as BufferSource, user_ark as BufferSource);
-    await createFolderForUser(
-      concatUint8(encrypted_root_folder_key.nonce, encrypted_root_folder_key.ciphertext),
-      null,
-      null,
-      concatUint8(encrypted_name_data.nonce, encrypted_name_data.ciphertext)
+
+    const signature = ed25519.sign(
+      concatUint8(
+        new TextEncoder().encode(""),
+        concatUint8(encrypted_name_data.nonce, encrypted_name_data.ciphertext),
+        concatUint8(encrypted_root_folder_key.nonce, encrypted_root_folder_key.ciphertext)
+      ),
+      ed25519_priv
     );
-    console.log("Created root folder for user");
+
+    await api.folders.create({
+      parent_folder_id: "",
+      encrypted_key_data_ark: bufferToHex(concatUint8(encrypted_root_folder_key.nonce, encrypted_root_folder_key.ciphertext) as BufferSource),
+      encrypted_key_data_parent: "",
+      encrypted_folder_name_data: bufferToHex(concatUint8(encrypted_name_data.nonce, encrypted_name_data.ciphertext) as BufferSource),
+      signature: bufferToHex(signature as BufferSource),
+    });
+    console.log("Created root folder for user and signed its data.");
   }
 
   const current_folder_key = root_folder_key;
-  console.log("Derived and assigned root folder key for user.");
 
-  const current_folder_id = await getRootFolderId();
+  const { root_folder_id: current_folder_id } = await api.folders.getRootId();
   console.log("Fetched root folder id:" + current_folder_id);
 
   return {
-    user_rsa_private,
-    user_rsa_public,
     user_mlkem_private,
     user_mlkem_public,
     user_x25519_private,
@@ -238,6 +151,7 @@ export const initializeUserData = async (
     current_folder_key,
     current_folder_id,
     user_ark,
+    ed25519_private: ed25519_priv,
   };
 };
 
@@ -248,17 +162,12 @@ export const performFullLogin = async (
   
   const { clientLoginState, startLoginRequest } = opaque.client.startLogin({ password });
 
-  const startRes = await fetch(`${config.BACKENDURL}/auth/login/start`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ username, startLoginRequest }),
+  const start_data = await api.auth.loginOpaqueStart({
+    username,
+    startLoginRequest,
   });
 
-  const startData = await startRes.json();
-  if (!startData.success) throw new Error(startData.message);
-
-  const { loginResponse, loginSessionId } = startData.data;
+  const { loginResponse, loginSessionId } = start_data;
 
   const loginResult = opaque.client.finishLogin({
     clientLoginState,
@@ -270,23 +179,12 @@ export const performFullLogin = async (
 
   const { finishLoginRequest } = loginResult;
 
-  const verifyRes = await fetch(
-    `${config.BACKENDURL}/auth/login/verify`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        finishLoginRequest,
-        loginSessionId,
-      }),
-    },
-  );
+  await api.auth.loginOpaqueVerify({
+    finishLoginRequest,
+    loginSessionId,
+  });
 
-  const verifyData = await verifyRes.json();
-  if (!verifyData.success) throw new Error(verifyData.message);
-
-  return initializeUserData(username, password);
+  return initializeUserData(password);
 };
 
 export const registerUser = async (
@@ -296,66 +194,52 @@ export const registerUser = async (
 ) => {
   const { clientRegistrationState, registrationRequest } = opaque.client.startRegistration({ password });
 
-  const initRes = await fetch(`${config.BACKENDURL}/auth/register/opq/init`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, registrationRequest }),
+  const initData = await api.auth.registerOpaqueInit({
+    username,
+    registrationRequest
   });
-  
-  const initData = await initRes.json();
-  if (!initData.success) throw new Error(initData.message);
 
   const { registrationRecord } = opaque.client.finishRegistration({
     clientRegistrationState,
-    registrationResponse: initData.data.registrationResponse,
+    registrationResponse: initData.registrationResponse,
     password,
   });
 
-  const { publicKey, privateKey } = await generateAsymKeyPair();
-  console.log("Generated key pair for user");
-
-  const seed = crypto.getRandomValues(new Uint8Array(96));
+  // seed for both ML-KEM and X25519 key generation, and ARK, all encrypted with user master key derived from password
+  const seed = crypto.getRandomValues(new Uint8Array(128));
   const ark = crypto.getRandomValues(new Uint8Array(32));
 
+  // from seed get mlkem seed and x25519 private key
   const mlkem_seed = seed.slice(0, 64);
-  const x25519_priv = seed.slice(64);
+  const x25519_priv = seed.slice(64, 96);
+  const ed25519_priv = seed.slice(96, 128);
 
+  // derive public keys
   const { publicKey: mlkem_public } = ml_kem768.keygen(mlkem_seed);
   const x25519_public = x25519.getPublicKey(x25519_priv);
+  const ed25519_public = ed25519.getPublicKey(ed25519_priv);
 
+  // salt for scrypt KDF to encrypt seed, ARK, and user RSA private key
   const kdf_salt = crypto.getRandomValues(new Uint8Array(16));
 
+  // scrypt to derive user master key from password and salt
   const user_master_key = await scryptAsync(
     new TextEncoder().encode(password),
     kdf_salt,
     { N: 16384, r: 8, p: 1, dkLen: 32 }
   );
 
+  // encrypt seed and ARK with user master key
   const encrypted_seed = await encrypt(seed, user_master_key as BufferSource);
   const encrypted_ark = await encrypt(ark, user_master_key as BufferSource);
-  const encryptedPrivateKey = await encrypt(privateKey, user_master_key as BufferSource);
 
-  const finishRes = await fetch(`${config.BACKENDURL}/auth/register/opq/finish`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    credentials: "include",
-    body: JSON.stringify({
-      username,
-      email,
-      registrationRecord, // 🚨 Replaces srp_salt and srp_verifier
-      kdf_salt: bufferToHex(kdf_salt as BufferSource),
-      user_rsa_public: bufferToHex(new Uint8Array(publicKey) as BufferSource),
-      encrypted_user_rsa_private: bufferToHex(concatUint8(encryptedPrivateKey.nonce, encryptedPrivateKey.ciphertext) as BufferSource),
-      public_keys_bundle: bufferToHex(concatUint8(mlkem_public, x25519_public) as BufferSource),
-      encrypted_seed: bufferToHex(concatUint8(encrypted_seed.nonce, encrypted_seed.ciphertext) as BufferSource),
-      encrypted_ark: bufferToHex(concatUint8(encrypted_ark.nonce, encrypted_ark.ciphertext) as BufferSource),
-    }),
+  await api.auth.registerOpaqueFinish({
+    username,
+    email,
+    registrationRecord,
+    kdf_salt: bufferToHex(kdf_salt),
+    public_keys_bundle: bufferToHex(concatUint8(mlkem_public, x25519_public, ed25519_public) as BufferSource),
+    encrypted_seed: bufferToHex(concatUint8(encrypted_seed.nonce, encrypted_seed.ciphertext) as BufferSource),
+    encrypted_ark: bufferToHex(concatUint8(encrypted_ark.nonce, encrypted_ark.ciphertext) as BufferSource),
   });
-
-  const finishData = await finishRes.json();
-  if (!finishData.success) {
-    throw new Error(`Registration failed: ${finishData.message}`);
-  }
 };

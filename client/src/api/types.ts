@@ -47,8 +47,6 @@ export interface OpaqueRegisterFinishRequest {
   email: string;
   registrationRecord: string;
   kdf_salt: string;
-  user_rsa_public: string;
-  encrypted_user_rsa_private: string;
   public_keys_bundle: string;
   encrypted_seed: string;
   encrypted_ark: string;
@@ -72,8 +70,8 @@ export interface OpaqueLoginStartResponse {
 }
 
 export interface OpaqueLoginVerifyRequest {
-  loginSessionId: string;
   finishLoginRequest: string;
+  loginSessionId: string;
 }
 
 // ==========================================
@@ -133,6 +131,10 @@ export interface UploadChunkResponse {
   stored_bytes: number;
 }
 
+export interface GetOwnerIdResponse {
+  owner_id: string;
+}
+
 export type DeleteFileResponse = null;
 
 // ==========================================
@@ -157,6 +159,7 @@ export interface ShareFileHybridRequest {
   share_duration: number;
   mlkem_ciphertext: string;
   x25519_ephemeral_public: string;
+  signature: string;
 }
 
 export interface ShareFileHybridResponse {
@@ -194,6 +197,7 @@ export interface GetFolderDataResponse {
   encrypted_key_data: string;
   encrypted_key_data_parent: string;
   encrypted_name_data: string;
+  signature: string;
 }
 
 export interface CheckRootFolderExistsResponse {
@@ -233,6 +237,7 @@ export interface CreateFolderRequest {
   encrypted_key_data_parent: string;
   parent_folder_id?: string;
   encrypted_folder_name_data?: string;
+  signature: string;
 }
 
 export interface CreateFolderResponse {
@@ -268,6 +273,7 @@ export interface ShareFolderHybridRequest {
   mlkem_ciphertext: string;
   x25519_ephemeral_public: string;
   permissions: FolderPermissions;
+  signature: string;
 }
 
 export interface ShareFolderHybridResponse {

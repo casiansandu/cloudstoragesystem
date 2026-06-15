@@ -11,10 +11,9 @@ type FileRequestResult = {
 
 export async function shareFileHybridController(req: ShareFileHybridRequest, res: Response<ApiSuccessResponse<FileRequestResult> | ApiErrorResponse>): Promise<void> {
 
+    const user_id = req.user?.id;
 
-    const user = req.user;
-
-    if (!user) {
+    if (!user_id) {
         res.status(401).json({
             message: 'Unauthorized',
             success: false
@@ -22,10 +21,10 @@ export async function shareFileHybridController(req: ShareFileHybridRequest, res
         return;
     }
 
-    const { file_id, recipient_username, encrypted_file_key, share_duration, mlkem_ciphertext, x25519_ephemeral_public } = req.body;
+    const { file_id, recipient_username, encrypted_file_key, share_duration, mlkem_ciphertext, x25519_ephemeral_public, signature } = req.body;
 
     if (!file_id || !recipient_username || !encrypted_file_key ||
-         (share_duration === undefined || share_duration === null) || !mlkem_ciphertext || !x25519_ephemeral_public) {
+         (share_duration === undefined || share_duration === null) || !mlkem_ciphertext || !x25519_ephemeral_public || !signature) {
         res.status(400).json({
             message: 'Missing required fields',
             success: false
@@ -40,20 +39,20 @@ export async function shareFileHybridController(req: ShareFileHybridRequest, res
 
     try {
         const file_context = await getFileContextService(file_id);
-        if (file_context.owner_id !== user.id) {
+        if (file_context.owner_id !== user_id) {
             if (!file_context.folder_id) {
                 res.status(403).json({ message: 'Access denied, not file owner.', success: false });
                 return;
             }
 
-            const access = await getFolderAccessForUserService(user.id, file_context.folder_id);
+            const access = await getFolderAccessForUserService(user_id, file_context.folder_id);
             if (access.accessType !== "owner" && !access.permissions.can_share) {
                 res.status(403).json({ message: 'Access denied, missing share permission.', success: false });
                 return;
             }
         }
-
-        const access_id = await shareFileHybridService(file_id, recipient_username, encrypted_file_key, share_duration, mlkem_ciphertext, x25519_ephemeral_public);
+        
+        const access_id = await shareFileHybridService(user_id, file_id, recipient_username, encrypted_file_key, share_duration, mlkem_ciphertext, x25519_ephemeral_public, signature);
         res.status(200).json({
             message: 'File shared successfully',
             success: true,

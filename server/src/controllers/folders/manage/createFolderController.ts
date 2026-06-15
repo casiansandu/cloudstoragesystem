@@ -10,12 +10,13 @@ interface CreateFolderRequest extends AuthenticatedRequest {
         encrypted_key_data_parent: string;
         parent_folder_id?: string;
         encrypted_folder_name_data?: string;
+        signature: string;
     };
 }
 
-function validateCreateFolderRequest(encrypted_key_data_ark: string, encrypted_key_data_parent: string, parent_folder_id?: string, encrypted_folder_name_data?: string): boolean {
+function validateCreateFolderRequest(encrypted_key_data_ark: string, encrypted_key_data_parent: string, parent_folder_id?: string, encrypted_folder_name_data?: string, signature?: string): boolean {
     // Basic validation to ensure required fields are present
-    if (!encrypted_key_data_ark || !encrypted_folder_name_data) {
+    if (!encrypted_key_data_ark || !encrypted_folder_name_data || !signature) {
         return false;
     }
 
@@ -31,13 +32,13 @@ export async function createFolderController(
     req: CreateFolderRequest, 
     res: Response<ApiSuccessResponse<{ folder_id: string, access_id: string }> | ApiErrorResponse>
 ): Promise<void> {
-    const { encrypted_key_data_ark, encrypted_key_data_parent, parent_folder_id, encrypted_folder_name_data } = req.body;
+    const { encrypted_key_data_ark, encrypted_key_data_parent, parent_folder_id, encrypted_folder_name_data, signature } = req.body;
     const user_id = req.user!.id;
 
-    const isValid = validateCreateFolderRequest(encrypted_key_data_ark, encrypted_key_data_parent, parent_folder_id, encrypted_folder_name_data);
+    const isValid = validateCreateFolderRequest(encrypted_key_data_ark, encrypted_key_data_parent, parent_folder_id, encrypted_folder_name_data, signature);
     if (!isValid) {
         res.status(400).json({ 
-            message: 'Missing required fields: encrypted_key_data_ark, encrypted_key_data_parent, and encrypted_folder_name_data are required.', 
+            message: 'Missing required fields: encrypted_key_data_ark, encrypted_key_data_parent, encrypted_folder_name_data, and signature are required.', 
             success: false 
         });
         return;
@@ -70,6 +71,7 @@ export async function createFolderController(
                 user_id, 
                 encrypted_key_data_ark,
                 encrypted_key_data_parent,
+                signature,
                 parent_folder_id, 
                 encrypted_folder_name_data,
                 tx

@@ -57,7 +57,7 @@ export const getFileDecryptedNamesAndIds = async (
 export const getSharedFileDecryptedNamesAndIds = async (
   rawFileData: EncryptedUserFileNoKey[],
   sessionFileKeys: Map<string, SessionFileKeyEntry>,
-  getXwingKeyForFile: (fileId: string) => Promise<Uint8Array>,
+  getXwingKeyForFile: (fileId: string, encrypted_file_key: Uint8Array) => Promise<Uint8Array>,
 ) => {
   const files = await Promise.all(rawFileData.map(async (file) => {
     try {
@@ -70,7 +70,7 @@ export const getSharedFileDecryptedNamesAndIds = async (
       const file_key_nonce = file_key_data.slice(0, 12);
       const file_key_ciphertext = file_key_data.slice(12);
 
-      const xwing_key = await getXwingKeyForFile(file.id);
+      const xwing_key = await getXwingKeyForFile(file.id, hexToBuffer(file_key_data_string));
       const file_key = await decrypt(
         file_key_ciphertext,
         xwing_key as BufferSource,

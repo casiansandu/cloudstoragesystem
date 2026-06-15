@@ -4,12 +4,14 @@ import { and, eq } from 'drizzle-orm';
 import { files, userAccess } from '../../../db/schema';
 
 export async function shareFileHybridService(
+  sharing_user_id: string,
   file_id: string,
   recipient_username: string,
   encrypted_file_key: string,
   share_period: number,
   mlkem_ciphertext: string,
-  x25519_ephemeral_public: string
+  x25519_ephemeral_public: string,
+  signature: string
 ): Promise<string> {
   let result: { id: string };
 
@@ -42,16 +44,17 @@ export async function shareFileHybridService(
     throw new Error("File already shared with this user");
   }
   
-  // Legacy SQL: INSERT INTO user_access (...) VALUES (...) RETURNING access_id
   const [insertedAccess] = await db
     .insert(userAccess)
     .values({
+      sharing_user_id: sharing_user_id,
       encryptedFileKey: encrypted_file_key,
       fileId: file_id,
       userId: recipient_id,
       shareDuration: share_period,
       mlkemCiphertext: mlkem_ciphertext,
       x25519EphemeralPublic: x25519_ephemeral_public,
+      signature: signature,
     })
     .returning({ id: userAccess.accessId });
   result = { id: insertedAccess.id };

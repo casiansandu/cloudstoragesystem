@@ -1,7 +1,10 @@
 import db from "../../../db/db";
 import { getStoragePath } from "../../../utils/getStoragePath";
 import fs from 'node:fs/promises';
-import { files, userAccess } from '../../../db/schema';
+import { files, userAccess, users } from '../../../db/schema';
+import { and, eq, lte, sql } from "drizzle-orm";
+
+const USER_MAX_SPACE = 2147000000; // 2.147 GB
 
 async function startHybridUploadService(
     enc_name: string,
@@ -11,9 +14,25 @@ async function startHybridUploadService(
     share_duration: number,
     folder_id: string
 ): Promise<{ file_id: string, access_id: string }> {
-    
+
     return db.transaction(async (t) => {
-        // Legacy SQL: INSERT INTO files (...) VALUES (...) RETURNING id
+        const [updatedUser] = await t
+        .update(users)
+        .set({
+            usedSpace: sql`${users.usedSpace} + ${file_size}`
+        })
+        .where(
+            and(
+                eq(users.id, userId),
+                lte(sql`${users.usedSpace} + ${file_size}`, USER_MAX_SPACE)
+            )
+    )
+    .returning({ id: users.id });
+
+        if (!updatedUser) {
+            throw new Error("GLOBAL_QUOTA_EXCEEDED");
+        }
+
         const [newFile] = await t
             .insert(files)
             .values({
@@ -24,7 +43,6 @@ async function startHybridUploadService(
             })
             .returning({ id: files.id });
 
-        // Legacy SQL: INSERT INTO user_access (...) VALUES (...) RETURNING access_id
         const [access_id] = await t
             .insert(userAccess)
             .values({
@@ -32,11 +50,11 @@ async function startHybridUploadService(
                 fileId: newFile.id,
                 userId,
                 shareDuration: share_duration,
+                signature: "",
             })
             .returning({ access_id: userAccess.accessId });
 
         const storagePath = getStoragePath(newFile.id);
-
         await fs.mkdir(storagePath, { recursive: true });
 
         return { file_id: newFile.id, access_id: access_id.access_id };
@@ -44,4 +62,3 @@ async function startHybridUploadService(
 }
 
 export default startHybridUploadService;
-

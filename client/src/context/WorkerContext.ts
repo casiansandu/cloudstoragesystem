@@ -9,9 +9,12 @@ export interface WorkerContextType {
   generateFileKey: (fileId: string) => Promise<{ wrappedKeyBuffer: ArrayBuffer }>;
   encryptChunk: (fileId: string, chunkBuffer: ArrayBuffer, chunkIndex: number) => Promise<{ iv: Uint8Array, ciphertext: Uint8Array }>;
   closeFile: (fileId: string) => Promise<void>;
-  //getFileKeys: () => Promise<{ success: boolean }>;
   uploadFile: (file: File) => Promise<{ success: boolean }>;
-  getChunkInfos: (fileId: string) => Promise<{ fileSize: number, chunks: { id: string, index: number, ciphertextLength: number }[] }>;
+
+  loadChunkInfos: (fileId: string, is_personal_file: boolean) => Promise<{ 
+    file_size: number;
+    chunk_infos: { id: string, index: number, ciphertextLength: number, chunk_hash: string }[];
+  }>;
 
   createFolderForUser: (name: string) => Promise<{ success: boolean, folderId: string }>;
   deleteFolder: (folderId: string) => Promise<{ success: boolean }>;
@@ -33,7 +36,6 @@ export interface WorkerContextType {
   getFolderParentIdAndName: (folderId: string) => Promise<{ parentId: string, parentName: string }>;
   getSharedFolderParentIdAndName: (folderId: string) => Promise<{ parentId: string, parentName: string }>;
 
-  decryptChunk: (fileId: string, chunkId: string, chunkIndex: number) => Promise<{ decryptedChunk: Uint8Array}>;
   shareFile: (fileId: string, recipientUsername: string, share_duration: number) => Promise<{ success: boolean }>;
   shareFolder: (payload: {
     folderId: string;
@@ -48,6 +50,9 @@ export interface WorkerContextType {
   getSharedFilesInFolder: (folderId: string) => Promise<{ files: EncryptedUserFileNoKey[] }>;
   getSharedFileDecryptedNamesAndIds: (files: EncryptedUserFileNoKey[]) => Promise<{ files: UserFile[] }>;
   getPermissionsForFolder: (folderId: string) => Promise<{ permissions: FolderPermissions }>;
+
+  getAndDecryptChunk(chunkIndex: number): Promise<{ chunkData: Uint8Array }>;
+  decryptChunkVerifyHash: (chunkIndex: number, encryptedData: ArrayBuffer, chunkHash: string) => Promise<{ chunkData: Uint8Array }>;
 }
 export const WorkerContext = createContext<WorkerContextType | null>(null);
 

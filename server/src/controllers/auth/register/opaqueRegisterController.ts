@@ -1,9 +1,7 @@
 import { Request, Response } from 'express';
-// Import your services!
 import { opaqueRegisterInitService, opaqueRegisterFinishService } from '../../../services/auth/register/opaqueRegisterService';
 import { ApiErrorResponse, ApiSuccessResponse } from '../../../types';
 
-// Controller for Phase 1: Init
 export async function opaqueRegisterInit(
   req: Request,
   res: Response<ApiSuccessResponse<{ registrationResponse: string }> | ApiErrorResponse>
@@ -16,7 +14,6 @@ export async function opaqueRegisterInit(
       return;
     }
 
-    // Call the Service!
     const { registrationResponse } = await opaqueRegisterInitService(username, registrationRequest);
 
     res.status(200).json({
@@ -30,26 +27,22 @@ export async function opaqueRegisterInit(
   }
 }
 
-// Controller for Phase 2: Finish
 export async function opaqueRegisterFinish(
   req: Request,
   res: Response<ApiSuccessResponse<{ user: { id: string; username: string } }> | ApiErrorResponse>
 ): Promise<void> {
   try {
     const { 
-      username, email, registrationRecord, kdf_salt, 
-      user_rsa_public, encrypted_user_rsa_private, 
-      public_keys_bundle, encrypted_seed, encrypted_ark 
+      username, email, registrationRecord, kdf_salt,
+      public_keys_bundle, encrypted_seed, encrypted_ark,
     } = req.body;
 
     if (!username || !email || !registrationRecord || !kdf_salt || 
-        !user_rsa_public || !encrypted_user_rsa_private || 
         !public_keys_bundle || !encrypted_seed || !encrypted_ark) {
       res.status(400).json({ message: 'All fields are required', success: false });
       return;
     }
 
-    // Call the Service!
     const user = await opaqueRegisterFinishService(req.body);
 
     res.status(201).json({

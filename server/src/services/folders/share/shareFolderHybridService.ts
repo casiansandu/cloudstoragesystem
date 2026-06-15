@@ -11,7 +11,8 @@ export async function shareFolderHybridService(
   share_period: number,
   mlkem_ciphertext: string,
   x25519_ephemeral_public: string,
-  permissions: { can_download: boolean; can_share: boolean; can_delete: boolean; can_upload: boolean }
+  permissions: { can_download: boolean; can_share: boolean; can_delete: boolean; can_upload: boolean },
+  signature: string
 ): Promise<string> {
   if (!isUuidV4(folder_id)) {
     throw new Error("Invalid folder ID");
@@ -60,6 +61,7 @@ export async function shareFolderHybridService(
       canShare: permissions.can_share,
       canDelete: permissions.can_delete,
       canUpload: permissions.can_upload,
+      signature: signature,
     })
     .returning({ id: folderAccess.accessId });
 

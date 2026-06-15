@@ -1,23 +1,31 @@
 
 import {Response } from 'express';
 import { ApiErrorResponse, ApiSuccessResponse, AuthenticatedRequest, GetPublicKeyBundleResult } from "../../../types";
-import { getIdByUsername } from '../../../services/users/info/getIdByUsername';
 import getPublicKeyBundleService from '../../../services/users/keys/getUserPublicKeyBundleService';
+import { isUuidV4 } from '../../../utils/validators';
 
 export async function getUserPublicKeyBundleController(req: AuthenticatedRequest, res: Response<ApiSuccessResponse<GetPublicKeyBundleResult> | ApiErrorResponse>): Promise<void> {
     
-    const username = req.params.username;
+    const user_id = req.params.user_id;
+
+    if (!user_id) {
+        res.status(400).json({
+            message: 'User ID is required',
+            success: false
+        });
+        return;
+    }
+
+    if (!isUuidV4(user_id)) {
+        res.status(400).json({
+            message: 'Invalid user ID format',
+            success: false
+        });
+        return;
+    }
 
     try {
-        const id = await getIdByUsername(username);
-        if (!id) {
-            res.status(404).json({
-                message: 'User not found',
-                success: false
-            });
-            return;
-        }
-        const keys = await getPublicKeyBundleService(id);    
+        const keys = await getPublicKeyBundleService(user_id);    
         
         res.status(200).json({ 
             message: 'Public key bundle retrieved successfully',

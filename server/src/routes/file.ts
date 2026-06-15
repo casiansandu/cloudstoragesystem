@@ -12,6 +12,9 @@ import { startHybridUploadController } from '../controllers/files/transfer/start
 import { getHybridInfoController } from '../controllers/files/transfer/getHybridUploadInfoController';
 import { shareFileHybridController } from '../controllers/files/share/shareFileHybridController';
 import { getSharedUserFilesController } from '../controllers/files/share/getSharedUserFilesController';
+import getOwnerIdByFileIdController from '../controllers/files/info/getOwnerIdByFileIdController';
+import getSharingUserIdFromAccessController from '../controllers/files/share/getSharingUserIdFromAccessController';
+import getSignatureForFileController from '../controllers/files/share/getSignatureForFileController';
 
 const router: Router = express.Router();
 const rawParser = express.raw({ type: 'application/octet-stream', limit: '50mb' });
@@ -23,6 +26,9 @@ router.get('/isowner/:file_id', authMiddleware, isFileOwnerController);
 router.get(`/download/:file_id/:chunk_id`, authMiddleware, getChunkController);
 router.get(`/:file_id/key`, authMiddleware, getFileMasterKeyController);
 router.get(`/:file_id/hybrid_info`, authMiddleware, getHybridInfoController);
+router.get(`/:file_id/owner_id`, authMiddleware, getOwnerIdByFileIdController);
+router.get(`/:file_id/sharing_user_id`, authMiddleware, getSharingUserIdFromAccessController);
+router.get(`/:file_id/signature`, authMiddleware, getSignatureForFileController);
 
 router.post('/upload/start_hybrid', authMiddleware, startHybridUploadController);
 router.post('/upload/:file_id/:chunk_id', authMiddleware, rawParser, uploadController);

@@ -29,6 +29,7 @@ export type ManifestData = {
     index: number;
     id: string;
     ciphertextLength: number;
+    chunk_hash: string;
   }[];
 };
 

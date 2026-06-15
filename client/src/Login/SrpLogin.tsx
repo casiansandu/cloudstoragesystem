@@ -14,10 +14,6 @@ export const SrpLogin = () => {
   const performSrpLogin = async () => {
     setIsLoading(true);
     try {
-      const logoutResult = await worker.logoutUser();
-      if (!logoutResult.success) {
-        throw new Error("Logout failed in worker");
-      }
       
       const loginResult = await worker.fullLogin(username, password);
       if (!loginResult.success) {

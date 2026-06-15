@@ -1,78 +1,8 @@
 import config from "../../../config/config";
 import { bufferToHex, encryptRSA, hexToBuffer, decryptRSA, encrypt, decrypt } from "../../../utils/crypto";
 import { concatUint8 } from "../../utils/funcs";
-
-export async function shareFile(
-    file_id: string, 
-    recipient_username: string, 
-    encrypted_file_key: string, 
-    encrypted_manifest_key: string, 
-    userPrivateKey: CryptoKey,
-    share_duration: number
-) {
-    
-    const manifest_key = await decryptRSA(
-        hexToBuffer(encrypted_manifest_key) as BufferSource,
-        userPrivateKey
-    );
-
-    const res = await fetch(`${config.BACKENDURL}/users/keys/${recipient_username}/public_key`, {
-        method: "GET",
-        credentials: "include"
-    });
-
-    const contentType = res.headers.get("content-type") || "";
-    const data = contentType.includes("application/json") ? await res.json() : null;
-
-    console.log("Fetch public key response:", data);
-
-    if (!res.ok) {
-        const message = data?.message ? String(data.message) : `HTTP ${res.status}`;
-        throw new Error(`Failed to fetch public key for user ${recipient_username}: ${message}`);
-    }
-
-    if (!data?.success) {
-        throw new Error(`Failed to fetch public key for user ${recipient_username}: ${data?.message || "unknown error"}`);
-    }
-
-    const recipient_public_key = data.data.encryption_public_key;
-
-    const encrypted_manifest_key_for_recipient = await encryptRSA(
-        manifest_key as BufferSource,
-        hexToBuffer(recipient_public_key) as BufferSource
-    );
-
-    const file_key = await decryptRSA(
-      hexToBuffer(encrypted_file_key) as BufferSource,
-      userPrivateKey
-    );
-
-    const encrypted_file_key_for_recipient = await encryptRSA(
-        file_key as BufferSource,
-        hexToBuffer(recipient_public_key) as BufferSource
-    );
-
-    const shareRes = await fetch(`${config.BACKENDURL}/files/share`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            file_id,
-            recipient_username,
-            encrypted_file_key: bufferToHex(encrypted_file_key_for_recipient as BufferSource),
-            encrypted_manifest_key: bufferToHex(encrypted_manifest_key_for_recipient as BufferSource),
-            share_duration
-        }),
-        credentials: "include"
-    });
-
-    const shareData = await shareRes.json();
-
-    console.log("Share file response:", shareData);
-
-}
-
+import { api } from "../../api/index";
+import { ed25519 } from "@noble/curves/ed25519.js";
 
 export async function shareFileHybrid(
     file_id: string, 
@@ -82,28 +12,9 @@ export async function shareFileHybrid(
     mlkem_ciphertext: Uint8Array,
     x25519_ephemeral_public: Uint8Array,
     share_duration: number,
-    current_folder_key: Uint8Array
+    current_folder_key: Uint8Array,
+    ed25519_private: Uint8Array
 ) {
-    
-    const res = await fetch(`${config.BACKENDURL}/users/keys/${recipient_username}/public_key`, {
-        method: "GET",
-        credentials: "include"
-    });
-
-    const contentType = res.headers.get("content-type") || "";
-    const data = contentType.includes("application/json") ? await res.json() : null;
-
-    console.log("Fetch public key response:", {message: data?.message, success: data?.success});
-
-    if (!res.ok) {
-        const message = data?.message ? String(data.message) : `HTTP ${res.status}`;
-        throw new Error(`Failed to fetch public key for user ${recipient_username}: ${message}`);
-    }
-
-    if (!data?.success) {
-        throw new Error(`Failed to fetch public key for user ${recipient_username}: ${data?.message || "unknown error"}`);
-    }
-
     const file_key = await decrypt(
       hexToBuffer(encrypted_file_key).slice(12),
       current_folder_key as BufferSource,
@@ -115,26 +26,28 @@ export async function shareFileHybrid(
         xwing_key as BufferSource,
     )
 
-    const shareRes = await fetch(`${config.BACKENDURL}/files/share_hybrid`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            file_id,
-            recipient_username,
-            encrypted_file_key: bufferToHex(concatUint8(encrypted_file_key_for_recipient.nonce, encrypted_file_key_for_recipient.ciphertext) as BufferSource),
-            share_duration,
-            mlkem_ciphertext: bufferToHex(mlkem_ciphertext as BufferSource),
-            x25519_ephemeral_public: bufferToHex(x25519_ephemeral_public as BufferSource),
-        }),
-        credentials: "include"
+    const key = concatUint8(encrypted_file_key_for_recipient.nonce, encrypted_file_key_for_recipient.ciphertext);
+
+    const signature = ed25519.sign(
+        concatUint8(
+            x25519_ephemeral_public,
+            mlkem_ciphertext,
+            key
+        ),
+        ed25519_private
+    );
+
+    const share_res = await api.files.shareHybrid({
+        file_id,
+        recipient_username,
+        encrypted_file_key: bufferToHex(key as BufferSource),
+        share_duration,
+        mlkem_ciphertext: bufferToHex(mlkem_ciphertext as BufferSource),
+        x25519_ephemeral_public: bufferToHex(x25519_ephemeral_public as BufferSource),
+        signature: bufferToHex(signature as BufferSource),
     });
 
-    const shareData = await shareRes.json();
+    console.log("Share file response:", { message: share_res.file_access_id });
 
-    console.log("Share file response:", {message: shareData.message, success: shareData.success});
-
-    return shareData;
-
+    return share_res.file_access_id;
 }

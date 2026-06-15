@@ -17,6 +17,8 @@ import getSharedFilesInFolderController from '../controllers/files/share/getShar
 import getSharedFoldersInFolderController from '../controllers/folders/share/getSharedFoldersInFolderController';
 import getSharedFolderParentIdAndNameController from '../controllers/folders/share/getSharedFolderParentIdAndNameController';
 import deleteFolderController from '../controllers/folders/manage/deleteFolderController';
+import getOwnerIdByFolderIdController from '../controllers/folders/info/getOwnerIdByFolderIdController';
+import getSignatureForFolderController from '../controllers/folders/share/getSignatureForFolderController';
 
 
 
@@ -39,6 +41,8 @@ router.get('/:folderId/folders', authMiddleware, getFoldersInfoByParentControlle
 router.get('/:folderId/shared/files', authMiddleware, getSharedFilesInFolderController);
 router.get('/:folderId/shared/folders', authMiddleware, getSharedFoldersInFolderController);
 router.get('/:folderId/shared/parent', authMiddleware, getSharedFolderParentIdAndNameController);
+router.get('/:folderId/owner_id', authMiddleware, getOwnerIdByFolderIdController);
+router.get('/:folderId/signature', authMiddleware, getSignatureForFolderController);
 router.delete('/:folderId', authMiddleware, deleteFolderController);
 
 export default router;

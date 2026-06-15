@@ -1,0 +1,1 @@
+ALTER TABLE "user_access" ALTER COLUMN "signature" SET NOT NULL;

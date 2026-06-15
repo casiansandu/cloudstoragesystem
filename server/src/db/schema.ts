@@ -19,11 +19,10 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   opaqueRegistrationRecord: text("opaque_registration_record").notNull(), 
   kdfSalt: varchar("kdf_salt", { length: 255 }).notNull(),
-  userRsaPublic: text("user_rsa_public").notNull(),
-  encryptedUserRsaPrivate: text("encrypted_user_rsa_private").notNull(),
   publicKeysBundle: text("public_keys_bundle").notNull(),
   encryptedSeed: text("encrypted_seed").notNull(),
   encryptedArk: text("encrypted_ark").notNull(),
+  usedSpace: bigint("user_used_space", { mode: "number" }).notNull(),
 });
 
 
@@ -33,10 +32,12 @@ export const files = pgTable("files", {
   encryptedNameData: text("encrypted_name_data").notNull(),
   ownerId: uuid("owner_id").notNull().references(() => users.id),
   folderId: uuid("folder_id").references(() => folders.id),
+  uploadedBytes: bigint('uploaded_bytes', { mode: 'number' }).default(0).notNull(),
 });
 
 export const userAccess = pgTable("user_access", {
   accessId: uuid("access_id").primaryKey().default(sql`uuid_generate_v4()`),
+  sharing_user_id: uuid("sharing_user_id").references(() => users.id),
   fileId: uuid("file_id").notNull().references(() => files.id),
   userId: uuid("user_id").notNull().references(() => users.id),
   encryptedFileKey: text("encrypted_file_key").notNull(),
@@ -44,6 +45,7 @@ export const userAccess = pgTable("user_access", {
   createdAt: date("created_at").notNull().default(sql`CURRENT_DATE`),
   x25519EphemeralPublic: text("x25519_ephemeral_public"),
   mlkemCiphertext: text("mlkem_ciphertext"),
+  signature: text("signature").notNull(),
 });
 
 export const folders = pgTable("folders", {
@@ -68,4 +70,5 @@ export const folderAccess = pgTable("folder_access", {
   canUpload: boolean("can_upload").notNull().default(false),
   canShare: boolean("can_share").notNull().default(false),
   canDelete: boolean("can_delete").notNull().default(false),
+  signature: text("signature").notNull(),
 });
