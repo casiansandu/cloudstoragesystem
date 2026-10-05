@@ -17,6 +17,25 @@ import ShareFolderPopup, { type FolderSharePermissions } from "./ShareFolderPopu
 import VirtualRootFolders from "./VirtualRootFolders";
 import { api } from "../api/index";
 
+interface MeasureMemoryBreakdown {
+  bytes: number;
+  attribution: string[];
+  types: string[];
+}
+
+interface MeasureMemoryResult {
+  bytes: number;
+  breakdown: MeasureMemoryBreakdown[];
+}
+
+// Extend the global Performance interface
+declare global {
+  interface Performance {
+    measureUserAgentSpecificMemory?(): Promise<MeasureMemoryResult>;
+  }
+}
+
+
 export const Home = () => {
 
   const worker = useGlobalWorker();
@@ -324,14 +343,28 @@ const handleNavigateDownShared = async (folderId: string, folderName: string) =>
 
       const start = performance.now();
       const CONCURRENCY_LIMIT = 5;
+        
+      let totalFetchTime = 0;
+      let totalDecryptTime = 0;
+      let totalWriteTime = 0;
 
       try {
         const activeFetches = new Map<number, Promise<ArrayBuffer>>();
-
+        
         const queueFetch = (index: number) => {
           if (index < chunk_number) {
             const chunk_id = manifest.chunk_infos[index].id;
-            activeFetches.set(index, api.files.downloadChunk(file.id, chunk_id));
+            
+            const fetchWithTiming = async () => {
+              const fetchStart = performance.now();
+              const buffer = await api.files.downloadChunk(file.id, chunk_id);
+              const fetchEnd = performance.now();
+              
+              totalFetchTime += (fetchEnd - fetchStart);
+              return buffer;
+            };
+
+            activeFetches.set(index, fetchWithTiming());
           }
         };
 
@@ -342,10 +375,17 @@ const handleNavigateDownShared = async (folderId: string, folderName: string) =>
         for (let i = 0; i < chunk_number; i++) {
           const buffer = await activeFetches.get(i);
           activeFetches.delete(i);
-
+          
+          const t1 = performance.now();
           const decryption_res = await worker.decryptChunkVerifyHash(i, buffer!, manifest.chunk_infos[i].chunk_hash);
-
+          const t2 = performance.now();
+          
+          totalDecryptTime += (t2 - t1);
+          
           await writer.write(decryption_res.chunkData);
+          const t3 = performance.now();
+          
+          totalWriteTime += (t3 - t2);
 
           queueFetch(i + CONCURRENCY_LIMIT);
         }
@@ -359,7 +399,20 @@ const handleNavigateDownShared = async (folderId: string, folderName: string) =>
       } finally {
         await worker.closeFile(file.id);
         const end = performance.now();
-        console.log(`Download time: ${((end - start) / 1000).toFixed(2)}s`);
+
+        if (chunk_number > 0) {
+          const avgFetch = (totalFetchTime / chunk_number).toFixed(2);
+          const avgDecrypt = (totalDecryptTime / chunk_number).toFixed(2);
+          const avgWrite = (totalWriteTime / chunk_number).toFixed(2);
+          
+          console.log(`--- Download Performance Metrics ---`);
+          console.log(`Total File Size: ${(manifest.file_size / 1024 / 1024).toFixed(2)} MB (${chunk_number} chunks)`);
+          console.log(`Average Fetch Time: ${avgFetch} ms/chunk`);
+          console.log(`Average Decrypt Time: ${avgDecrypt} ms/chunk`);
+          console.log(`Average Write Time: ${avgWrite} ms/chunk`);
+        }
+
+        console.log(`Total Download time: ${((end - start) / 1000).toFixed(2)}s (${(manifest.file_size / (end - start) * 1000 / 1024 / 1024).toFixed(2)} MB/s)`);
       }
     } catch (error) {
       console.error("Download failed:", error);
@@ -484,8 +537,15 @@ const handleNavigateDownShared = async (folderId: string, folderName: string) =>
       permissions
     });
 
+    const permissions_from_api = await worker.getPermissionsForFolder(activeFolder.id);
+
     if (rootView === "shared" && currentFolder.id && !sharedFolderPermissions?.can_share) {
       alert("You do not have permission to share from this folder.");
+      return;
+    }
+
+    if (permissions.delete && !permissions_from_api.permissions.can_delete) {
+      alert("You do not have permission to grant delete permissions.");
       return;
     }
 

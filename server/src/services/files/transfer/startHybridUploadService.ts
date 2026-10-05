@@ -3,8 +3,8 @@ import { getStoragePath } from "../../../utils/getStoragePath";
 import fs from 'node:fs/promises';
 import { files, userAccess, users } from '../../../db/schema';
 import { and, eq, lte, sql } from "drizzle-orm";
-
-const USER_MAX_SPACE = 2147000000; // 2.147 GB
+import config from "../../../config/config";
+const USER_MAX_SPACE = Number.parseInt(config.USER_MAX_SPACE); // 5.147 GB
 
 async function startHybridUploadService(
     enc_name: string,

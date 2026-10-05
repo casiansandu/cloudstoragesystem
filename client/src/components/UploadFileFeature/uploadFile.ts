@@ -84,9 +84,7 @@ export async function handleChunkEncryption(
     file_id: string, 
     chunk_size: number, 
     selectedFile: File, 
-    chunk_number: number
 ){
-    console.log(chunk_index + "/" + chunk_number);
     const chunk_id = uuidv4();
 
     const file_crypto_key = await crypto.subtle.importKey(

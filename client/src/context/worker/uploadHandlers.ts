@@ -17,6 +17,11 @@ type SessionFileKeyEntry = {
   temp_decrypted_file_key: BufferSource | null;
 };
 
+const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024; // 10 GB
+const AEAD_OVERHEAD = 28; // 12 byte nonce + 16 byte tag
+const UPLOAD_CONCURRENCY_LIMIT = 4;
+
 const calculateManifestSize = (
   fileSize: number,
   chunkSize: number,
@@ -25,44 +30,21 @@ const calculateManifestSize = (
 ): number => {
   const totalChunks = Math.ceil(fileSize / chunkSize);
 
-  const dummyUuid = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
-  const dummyIsoDate = "2026-06-08T12:00:00.000Z";
+  const baseJsonStr = `{"file_id":"f47ac10b-58cc-4372-a567-0e02b2c3d479","totalChunks":${totalChunks},"uploadedAt":"2026-06-08T12:00:00.000Z","encryptedFileKey":"${encFileKeyHex}","file_size":${fileSize},"chunkInfos":[]}`;
+  const baseByteLength = new TextEncoder().encode(baseJsonStr).length;
+
+  const maxIndexDigits = totalChunks.toString().length;
+  const chunkHashPlaceholder = "0".repeat(64);
+  const maxCiphertextLen = chunkSize + aeadOverhead;
   
-  const chunk_hash_placeholder = "0".repeat(64); 
+  const dummyChunkStr = `{"index":${"9".repeat(maxIndexDigits)},"id":"f47ac10b-58cc-4372-a567-0e02b2c3d479","ciphertextLength":${maxCiphertextLen},"chunk_hash":"${chunkHashPlaceholder}"},`;
+  const singleChunkByteLength = new TextEncoder().encode(dummyChunkStr).length;
 
-  const dummyChunkInfos = [];
-  for (let i = 0; i < totalChunks; i++) {
-    const isLastChunk = i === totalChunks - 1;
-    let plainChunkSize = chunkSize;
+  const plainTextByteLength = baseByteLength + (totalChunks * singleChunkByteLength);
 
-    if (isLastChunk) {
-      const remainder = fileSize % chunkSize;
-      plainChunkSize = remainder === 0 ? chunkSize : remainder;
-    }
-
-    dummyChunkInfos.push({
-      index: i,
-      id: dummyUuid, 
-      ciphertextLength: plainChunkSize + aeadOverhead, 
-      chunk_hash: chunk_hash_placeholder,
-    });
-  }
-
-  const dummyManifest = {
-    file_id: dummyUuid, 
-    totalChunks: totalChunks,
-    uploadedAt: dummyIsoDate,
-    encryptedFileKey: encFileKeyHex, 
-    file_size: fileSize,
-    chunkInfos: dummyChunkInfos,
-  };
-
-  const jsonString = JSON.stringify(dummyManifest);
-  const plainTextByteLength = new TextEncoder().encode(jsonString).length;
-
-  // Exact AES-GCM envelope payload + 64 bytes for Ed25519 signature
   return plainTextByteLength + aeadOverhead + 64; 
 };
+
 
 export const uploadFile = async (
   selectedFile: File,
@@ -71,21 +53,22 @@ export const uploadFile = async (
   sessionFileKeys: Map<string, SessionFileKeyEntry>,
   ed25519_private: Uint8Array,
 ): Promise<string> => {
-
   let file_id = "";
+  
+  let startTime = performance.now();
+
   try { 
+
     const share_duration: number = 0;
 
     if (selectedFile.size === 0) {
       throw new Error("Cannot upload empty file.");
-    } else if (selectedFile.size > 10 * 1024 * 1024 * 1024) {
+    } else if (selectedFile.size > MAX_FILE_SIZE) {
       throw new Error("File size exceeds the 10 GB limit.");
     }
 
     const file_size_bytes = selectedFile.size;
-
-    const chunk_size = 5 * 1024 * 1024;
-    const chunk_number = Math.ceil(file_size_bytes / chunk_size);
+    const chunk_number = Math.ceil(file_size_bytes / CHUNK_SIZE);
 
     const _file_key = await generateMasterKey() as Uint8Array;
     const fileNameKey = expandKeyForName(_file_key);
@@ -99,12 +82,11 @@ export const uploadFile = async (
       concatUint8(enc_file_key_nonce, enc_file_key_ciphertext) as BufferSource,
     );
 
-    const AEAD_OVERHEAD = 28; // 12 byte nonce + 16 byte tag
     const totalChunkOverhead = chunk_number * AEAD_OVERHEAD;
     const encryptedChunksTotalSize = selectedFile.size + totalChunkOverhead;
-    const manifest_size = calculateManifestSize(file_size_bytes, chunk_size, AEAD_OVERHEAD, enc_file_key_data);
+    const manifest_size = calculateManifestSize(file_size_bytes, CHUNK_SIZE, AEAD_OVERHEAD, enc_file_key_data);
 
-    if (manifest_size > chunk_size) {
+    if (manifest_size > CHUNK_SIZE) {
       throw new Error("Exceeds size limit, cannot upload file.");
     }
 
@@ -125,32 +107,42 @@ export const uploadFile = async (
       uploadedAt: new Date().toISOString(),
       encryptedFileKey: enc_file_key_data,
       file_size: file_size_bytes,
-      chunkInfos: [],
+      chunkInfos: new Array(chunk_number),
     };
 
-    let chunk_index = 0;
+    const activeUploads = new Set<Promise<void>>();
 
-    while (chunk_index < chunk_number) {
-      const { chunk_data_buffer, chunk_id } = await handleChunkEncryption(
-        fileDataKey as BufferSource,
-        chunk_index,
-        file_id,
-        chunk_size,
-        selectedFile,
-        chunk_number,
-      );
+    for (let chunk_index = 0; chunk_index < chunk_number; chunk_index++) {
+      
+      const uploadTask = (async () => {
+        const { chunk_data_buffer, chunk_id } = await handleChunkEncryption(
+          fileDataKey as BufferSource,
+          chunk_index,
+          file_id,
+          CHUNK_SIZE,
+          selectedFile,
+        );
 
-      await uploadChunk(chunk_data_buffer, file_id, chunk_id);
+        await uploadChunk(chunk_data_buffer, file_id, chunk_id);
 
-      manifest.chunkInfos.push({
-        index: chunk_index,
-        id: chunk_id,
-        ciphertextLength: chunk_data_buffer.byteLength,
-        chunk_hash: bufferToHex(sha256(new Uint8Array(chunk_data_buffer)) as BufferSource),
-      });
+        manifest.chunkInfos[chunk_index] = {
+          index: chunk_index,
+          id: chunk_id,
+          ciphertextLength: chunk_data_buffer.byteLength,
+          chunk_hash: bufferToHex(sha256(new Uint8Array(chunk_data_buffer)) as BufferSource),
+        };
+      })();
 
-      chunk_index += 1;
+      activeUploads.add(uploadTask);
+      
+      uploadTask.finally(() => activeUploads.delete(uploadTask));
+
+      if (activeUploads.size >= UPLOAD_CONCURRENCY_LIMIT) {
+        await Promise.race(activeUploads);
+      }
     }
+
+    await Promise.all(activeUploads);
 
     const { encrypted_manifest_buffer, manifest_uuid } = await encryptManifest(
       file_id,
@@ -159,13 +151,18 @@ export const uploadFile = async (
     );
 
     const signedManifest = ed25519.sign(new Uint8Array(encrypted_manifest_buffer), ed25519_private);
-
     await uploadChunk((concatUint8(encrypted_manifest_buffer, signedManifest).buffer) as ArrayBuffer, file_id, manifest_uuid);
 
     sessionFileKeys.set(file_id, {
       encrypted_file_key: enc_file_key_data,
       temp_decrypted_file_key: null,
     });
+
+    let endTime = performance.now();
+    console.log(`Total upload time for file: ${((endTime - startTime)/1000).toFixed(2)} s for file size ${(file_size_bytes / (1024 * 1024)).toFixed(2)} MB\
+    (MB/S = ${(file_size_bytes / (endTime - startTime) * 1000 / (1024 * 1024)).toFixed(2)}),\
+    ms/chunk = ${((endTime - startTime) / chunk_number).toFixed(2)} ms`);
+    
   } catch (error) {
     console.error("Upload failed mid-way. Initiating cleanup.", error);
     
@@ -177,9 +174,9 @@ export const uploadFile = async (
         console.error("Failed to clean up orphaned file on the server:", cleanupError);
       }
     }
-
     throw error; 
   }
+
 
   return file_id;
 };

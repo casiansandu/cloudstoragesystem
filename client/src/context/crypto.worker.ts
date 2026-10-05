@@ -114,6 +114,10 @@ export const getManifestDataAndVerify = async (
     new TextDecoder().decode(manifest),
   );
 
+  if (manifest_json.file_id !== file_id) {
+  throw new Error("Manifest file_id mismatch. The manifest data may have been tampered with.");
+}
+
   return manifest_json;
 };
 
@@ -242,39 +246,45 @@ const handlers: Record<string, (payload: any) => Promise<HandlerResult>> = {
     };
   },
   DECRYPT_CHUNK_VERIFY_HASH: async (payload: { chunkIndex: number; encryptedData: ArrayBuffer; chunkHash: string }) => {
-    if (!current_folder_key) throw new Error("Folder key not initialized");
-    if (!file_to_download_info) throw new Error("File info not loaded");
-    
-    if (payload.chunkIndex === undefined || !payload.encryptedData || !payload.chunkHash) {
-      throw new Error("Invalid payload for decrypting chunk");
-    }
+  if (!current_folder_key) throw new Error("Folder key not initialized");
+  if (!file_to_download_info) throw new Error("File info not loaded");
+  
+  if (payload.chunkIndex === undefined || !payload.encryptedData || !payload.chunkHash) {
+    throw new Error("Invalid payload for decrypting chunk");
+  }
 
-    const recalculated_hash = sha256(payload.encryptedData);
+  const chunk_index = payload.chunkIndex;
+  const file_id = file_to_download_info.file_id;
 
-    if (recalculated_hash !== payload.chunkHash) {
-      console.error("Chunk hash mismatch! Possible data corruption or tampering.");
-      throw new Error("Chunk hash mismatch. Data integrity cannot be verified.");
-    }
+  const decryptPromise = decryptChunk(
+    payload.encryptedData, 
+    file_id,
+    chunk_index,
+    sessionFileKeys,
+    current_folder_key,
+    getXwingKeyForFileAndVerifySig,
+    file_to_download_info.personal,
+    file_to_download_info.shared_sub_file
+  );
 
-    const chunk_index = payload.chunkIndex;
-    const file_id = file_to_download_info.file_id;
+  const recalculated_hash = sha256(payload.encryptedData);
 
-    const decrypted_chunk = await decryptChunk(
-      payload.encryptedData, 
-      file_id,
-      chunk_index,
-      sessionFileKeys,
-      current_folder_key,
-      getXwingKeyForFileAndVerifySig,
-      file_to_download_info.personal,
-      file_to_download_info.shared_sub_file
-    );
+  if (recalculated_hash !== payload.chunkHash) {
+    console.error("Chunk hash mismatch! Possible data corruption or tampering.");
+    throw new Error("Chunk hash mismatch. Data integrity cannot be verified.");
+  }
 
-    return {
-      result: { chunkData: decrypted_chunk },
-      transfer: [decrypted_chunk.buffer],
-    };
-  },
+  const decrypted_chunk = await decryptPromise;
+
+  const transferBuffer = decrypted_chunk instanceof Uint8Array 
+    ? decrypted_chunk.buffer 
+    : decrypted_chunk;
+
+  return {
+    result: { chunkData: decrypted_chunk },
+    transfer: [transferBuffer],
+  };
+},
   GET_AND_DECRYPT_CHUNK: async (payload: { chunkIndex: number }) => {
     if (!current_folder_key) {
       throw new Error("Current folder key not initialized");

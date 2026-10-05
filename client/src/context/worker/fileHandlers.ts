@@ -7,6 +7,7 @@ type SessionFileKeyEntry = {
   encrypted_file_key: string;
   temp_decrypted_file_key: BufferSource | null;
   file_key_for_download?: CryptoKey | null;
+  file_key_promise?: Promise<CryptoKey> | null;
 };
 
 type GetManifestData = (fileId: string, fileManifestKey: Uint8Array) => Promise<ManifestData>;
@@ -138,64 +139,69 @@ export const decryptChunk = async (
   chunkIndex: number,
   sessionFileKeys: Map<string, SessionFileKeyEntry>,
   currentFolderKey: Uint8Array,
-  getXwingKeyForFileAndVerifySig: getXwingKeyForFileAndVerifySig,
+  getXwingKeyForFileAndVerifySig: any,
   is_personal_file: boolean,
   is_shared_sub_file: boolean,
 ) => {
-  if (!sessionFileKeys.get(fileId)) {
+
+  const sessionFileEntry = sessionFileKeys.get(fileId);
+  if (sessionFileEntry === undefined) {
     throw new Error("File session data not found for file: " + fileId);
   }
 
-  const file_master_key_encrypted =
-    sessionFileKeys.get(fileId)?.encrypted_file_key;
+  const file_master_key_encrypted = sessionFileEntry.encrypted_file_key;
 
   if (!file_master_key_encrypted) {
-    throw new Error(
-      "File master key not found in session for file: " + fileId,
-    );
+    throw new Error("File master key not found in session for file: " + fileId);
   }
 
-  if (!sessionFileKeys.get(fileId)?.file_key_for_download) {
-    let raw_file_key: BufferSource;
+  // OPTIMIZATION: Promise Locking (Prevents Thundering Herd)
+  if (!sessionFileEntry.file_key_promise) {
+    console.log("Decrypting file key for file: " + fileId);
+    
+    // We instantly assign a Promise to the session so subsequent concurrent chunks
+    // will await this exact same promise instead of running the decryption again.
+    sessionFileEntry.file_key_promise = (async () => {
+      let raw_file_key: BufferSource;
+      const enc_file_key_data = hexToBuffer(file_master_key_encrypted);
+      const enc_file_key_nonce = enc_file_key_data.subarray(0, 12) as BufferSource;
+      const enc_file_key_ciphertext = enc_file_key_data.subarray(12) as BufferSource;
 
-    const enc_file_key_data = hexToBuffer(file_master_key_encrypted);
-    const enc_file_key_nonce = enc_file_key_data.slice(0, 12);
-    const enc_file_key_ciphertext = enc_file_key_data.slice(12);
-
-    try {
-      if (is_personal_file || is_shared_sub_file) {
-        raw_file_key = expandKeyForData(await decrypt(
-          enc_file_key_ciphertext,
-          currentFolderKey as BufferSource,
-          enc_file_key_nonce,
-        )) as BufferSource;
-      } else {
-        const xwing_key = await getXwingKeyForFileAndVerifySig(fileId, hexToBuffer(file_master_key_encrypted));
-        raw_file_key = expandKeyForData(await decrypt(
-          enc_file_key_ciphertext,
-          xwing_key as BufferSource,
-          enc_file_key_nonce,
-        )) as BufferSource;
-
+      try {
+        if (is_personal_file || is_shared_sub_file) {
+          raw_file_key = expandKeyForData(await decrypt(
+            enc_file_key_ciphertext,
+            currentFolderKey as BufferSource,
+            enc_file_key_nonce,
+          )) as BufferSource;
+        } else {
+          const xwing_key = await getXwingKeyForFileAndVerifySig(fileId, enc_file_key_data);
+          raw_file_key = expandKeyForData(await decrypt(
+            enc_file_key_ciphertext,
+            xwing_key as BufferSource,
+            enc_file_key_nonce,
+          )) as BufferSource;
+        }
+      } catch (error) {
+        console.warn(`Decryption of file key for file ${fileId} failed.`, { error });
+        throw new Error("Failed to decrypt file key for file: " + fileId);
       }
-    } catch (error) {
-      console.warn(`Decryption of file key for file ${fileId} failed.`, {
-        error,
-      });
-      throw new Error("Failed to decrypt file key for file: " + fileId);
-    }
 
-    sessionFileKeys.get(fileId)!.file_key_for_download = await crypto.subtle.importKey(
-      "raw",
-      raw_file_key,
-      { name: "HKDF" },
-      false,
-      ["deriveKey"]
-    );
+      return await crypto.subtle.importKey(
+        "raw",
+        raw_file_key,
+        { name: "HKDF" },
+        false,
+        ["deriveKey"]
+      );
+    })();
   }
+
+  // All concurrent chunks safely wait for the single promise to resolve
+  const file_key_for_download = await sessionFileEntry.file_key_promise;
 
   const chunk_key = await deriveChunkKey(
-    sessionFileKeys.get(fileId)!.file_key_for_download!,
+    file_key_for_download,
     chunkIndex,
     fileId,
   );
@@ -204,11 +210,10 @@ export const decryptChunk = async (
   const chunk_nonce = chunkView.subarray(0, 12);
   const chunk_ciphertext = chunkView.subarray(12);
 
-  const decrypted_chunk = await decrypt(
+  // Return the decrypted ArrayBuffer
+  return await decrypt(
     chunk_ciphertext,
     chunk_key,
     chunk_nonce,
   );
-
-  return decrypted_chunk;
 };
